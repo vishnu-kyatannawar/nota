@@ -499,3 +499,110 @@ func TestReplaceItemsKeepsRolloverMetadataById(t *testing.T) {
 		t.Errorf("rollover metadata lost: %+v", got)
 	}
 }
+
+func TestLayoutParsesAndDefaults(t *testing.T) {
+	tests := []struct {
+		name string
+		src  string
+		want string
+	}{
+		{"absent means both", "---\nid: x\n---\n", LayoutBoth},
+		{"items", "---\nlayout: items\n---\n", LayoutItems},
+		{"notes", "---\nlayout: notes\n---\n", LayoutNotes},
+		{"both explicit", "---\nlayout: both\n---\n", LayoutBoth},
+		{"unknown falls back", "---\nlayout: sideways\n---\n", LayoutBoth},
+		{"workplan is always both", "---\ntype: workplan\nlayout: notes\n---\n", LayoutBoth},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			n, err := Parse(tt.src)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := n.EffectiveLayout(); got != tt.want {
+				t.Errorf("EffectiveLayout() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLayoutSerialisesAfterDayType(t *testing.T) {
+	n := &Note{ID: "x", DayType: "work", Layout: LayoutItems, HadFrontmatter: true}
+	got := Serialize(n)
+	want := "---\nid: x\ndaytype: work\nlayout: items\n---\n"
+	if got != want {
+		t.Errorf("Serialize =\n%s\nwant\n%s", got, want)
+	}
+}
+
+func TestTakeItemsMovesSubtreesAndRebasesDepth(t *testing.T) {
+	src := "- [ ] Keep <!--n id:K t:09:00-->\n" +
+		"- [ ] Parent #x <!--n id:P t:09:01 from:2026-09-01 carried:2-->\n" +
+		"      Parent body line.\n" +
+		"\n" +
+		"  - [ ] Child <!--n id:C t:09:02-->\n" +
+		"    - [ ] Grandchild <!--n id:G t:09:03-->\n" +
+		"- [ ] Also keep <!--n id:K2 t:09:04-->\n"
+	n, err := Parse(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	taken := n.TakeItems([]string{"P"})
+
+	if got := len(taken); got != 3 {
+		t.Fatalf("took %d items, want the parent and its 2 descendants: %+v", got, taken)
+	}
+	if taken[0].ID != "P" || taken[1].ID != "C" || taken[2].ID != "G" {
+		t.Errorf("wrong items or order: %+v", taken)
+	}
+	if taken[0].Depth != 0 || taken[1].Depth != 1 || taken[2].Depth != 2 {
+		t.Errorf("depth not re-based: %d %d %d", taken[0].Depth, taken[1].Depth, taken[2].Depth)
+	}
+	if len(taken[0].Body) == 0 || taken[0].Body[0] != "Parent body line." {
+		t.Errorf("body did not travel: %+v", taken[0].Body)
+	}
+	if taken[0].CreatedAt != "09:01" || taken[0].From != "2026-09-01" || taken[0].Carried != 2 {
+		t.Errorf("metadata was altered: %+v", taken[0])
+	}
+	if got := Serialize(n); got != "- [ ] Keep <!--n id:K t:09:00-->\n- [ ] Also keep <!--n id:K2 t:09:04-->\n" {
+		t.Errorf("source after take:\n%s", got)
+	}
+}
+
+func TestTakeItemsChildAloneBecomesTopLevel(t *testing.T) {
+	n, err := Parse("- [ ] Parent <!--n id:P-->\n  - [ ] Child <!--n id:C-->\n    - [ ] Grandchild <!--n id:G-->\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	taken := n.TakeItems([]string{"C"})
+	if len(taken) != 2 || taken[0].Depth != 0 || taken[1].Depth != 1 {
+		t.Errorf("child subtree not re-based: %+v", taken)
+	}
+	if len(n.Items) != 1 || n.Items[0].ID != "P" {
+		t.Errorf("parent should remain: %+v", n.Items)
+	}
+}
+
+func TestTakeItemsUnknownIdIsNoOp(t *testing.T) {
+	n, err := Parse("- [ ] One <!--n id:A-->\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if taken := n.TakeItems([]string{"nope"}); len(taken) != 0 || len(n.Items) != 1 {
+		t.Errorf("unknown id changed something: taken=%+v left=%+v", taken, n.Items)
+	}
+}
+
+func TestAppendItemsGoesToTheEnd(t *testing.T) {
+	n, err := Parse("---\ntype: workplan\n---\n\n- [ ] Existing <!--n id:E t:08:00-->\n\n## Notes\n\nkeep\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	n.AppendItems([]Item{{ID: "M", Text: "Moved in", CreatedAt: "09:00"}, {ID: "MC", Text: "Its child", CreatedAt: "09:01", Depth: 1}})
+	got := Serialize(n)
+	want := "---\ntype: workplan\n---\n\n- [ ] Existing <!--n id:E t:08:00-->\n- [ ] Moved in <!--n id:M t:09:00-->\n  - [ ] Its child <!--n id:MC t:09:01-->\n\n## Notes\n\nkeep\n"
+	if got != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+}

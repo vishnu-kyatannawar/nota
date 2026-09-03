@@ -28,6 +28,14 @@ import (
 // Ext is the file extension a note is stored with.
 const Ext = ".md"
 
+// Layouts decide which sections a note shows. A workplan is always both, with
+// items first; any other note may be items only, notes only, or both.
+const (
+	LayoutItems = "items"
+	LayoutNotes = "notes"
+	LayoutBoth  = "both"
+)
+
 // bodyIndent is how far an item's body is indented past the item's own bullet,
 // which lines it up under the text after "- [ ] ".
 const bodyIndent = 6
@@ -52,6 +60,7 @@ type Note struct {
 	Date    string   `yaml:"date,omitempty"`
 	Hours   string   `yaml:"hours,omitempty"`
 	DayType string   `yaml:"daytype,omitempty"`
+	Layout  string   `yaml:"layout,omitempty"`
 	Labels  []string `yaml:"labels,omitempty"`
 
 	// Items are the action items, in file order and including nested ones.
@@ -239,7 +248,7 @@ func rejoinClock(dst *string, meta, key string) {
 func Serialize(n *Note) string {
 	var b strings.Builder
 
-	if n.HadFrontmatter || n.ID != "" || n.Type != "" || n.Date != "" || n.Hours != "" || n.DayType != "" || len(n.Labels) > 0 {
+	if n.HadFrontmatter || n.ID != "" || n.Type != "" || n.Date != "" || n.Hours != "" || n.DayType != "" || n.Layout != "" || len(n.Labels) > 0 {
 		b.WriteString("---\n")
 		b.WriteString(frontmatter(n))
 		b.WriteString("---\n")
@@ -306,6 +315,9 @@ func frontmatter(n *Note) string {
 	}
 	if n.DayType != "" {
 		b.WriteString("daytype: " + n.DayType + "\n")
+	}
+	if n.Layout != "" {
+		b.WriteString("layout: " + n.Layout + "\n")
 	}
 	if len(n.Labels) > 0 {
 		b.WriteString("labels: [" + strings.Join(n.Labels, ", ") + "]\n")
@@ -627,4 +639,59 @@ func (n *Note) ReplaceItemsAt(items []Item, at string) {
 		out = append(out, it)
 	}
 	n.Items = out
+}
+
+// EffectiveLayout is the layout to render. A workplan is always both; an absent
+// or unrecognised value is both, so an older note never loses a section.
+func (n *Note) EffectiveLayout() string {
+	if n.Type == "workplan" {
+		return LayoutBoth
+	}
+	switch n.Layout {
+	case LayoutItems, LayoutNotes:
+		return n.Layout
+	default:
+		return LayoutBoth
+	}
+}
+
+// TakeItems removes the items with the given ids — each together with the
+// items nested beneath it — and returns them in file order, with depth re-based
+// so a moved subtree keeps its shape at its new home. Unknown ids are ignored.
+// Ids, timestamps, carry counters and bodies travel untouched, so an item moved
+// into today's workplan still says when it was first added.
+func (n *Note) TakeItems(ids []string) []Item {
+	want := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		if id != "" {
+			want[id] = true
+		}
+	}
+
+	var taken, kept []Item
+	for i := 0; i < len(n.Items); {
+		it := n.Items[i]
+		if !want[it.ID] {
+			kept = append(kept, it)
+			i++
+			continue
+		}
+		base := it.Depth
+		end := i + 1
+		for end < len(n.Items) && n.Items[end].Depth > base {
+			end++
+		}
+		for _, moved := range n.Items[i:end] {
+			moved.Depth -= base
+			taken = append(taken, moved)
+		}
+		i = end
+	}
+	n.Items = kept
+	return taken
+}
+
+// AppendItems adds items to the end of the list, leaving the body in place.
+func (n *Note) AppendItems(items []Item) {
+	n.Items = append(n.Items, items...)
 }
