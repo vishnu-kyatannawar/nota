@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Nota mark: a page of three lines, the middle one already ticked. -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6b6be3"/>
+      <stop offset="1" stop-color="#4f4fcf"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="228" fill="url(#g)"/>
+  <g stroke="#ffffff" stroke-width="72" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <line x1="252" y1="332" x2="772" y2="332"/>
+    <polyline points="252,528 336,612 488,460"/>
+    <line x1="560" y1="528" x2="772" y2="528"/>
+    <line x1="252" y1="724" x2="620" y2="724"/>
+  </g>
+</svg>
