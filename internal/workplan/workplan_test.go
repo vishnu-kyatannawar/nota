@@ -528,3 +528,32 @@ func TestPathForDate(t *testing.T) {
 		t.Errorf("PathFor() = %q", got)
 	}
 }
+
+// A seeded item needs its own id like any other, or the editor cannot address
+// it to tick, retext or delete it.
+func TestSeededRecurringItemsGetIDs(t *testing.T) {
+	m, v := newManager(t)
+	write(t, v, ".nota/templates/recurring.md", "- [ ] Check calendar @daily\n- [ ] Log the bill @daily\n")
+
+	if _, err := m.Ensure(date("2026-09-02")); err != nil {
+		t.Fatal(err)
+	}
+	note, err := v.ReadNote("Workplans/2026-09-02.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(note.Items) != 2 {
+		t.Fatalf("got %d items, want 2", len(note.Items))
+	}
+
+	seen := map[string]bool{}
+	for _, it := range note.Items {
+		if it.ID == "" {
+			t.Errorf("seeded item %q has no id", it.Text)
+		}
+		if seen[it.ID] {
+			t.Errorf("seeded items share the id %q", it.ID)
+		}
+		seen[it.ID] = true
+	}
+}

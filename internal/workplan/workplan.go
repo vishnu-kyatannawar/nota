@@ -11,12 +11,15 @@
 package workplan
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io/fs"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/oklog/ulid/v2"
 
 	"github.com/vishnu-kyatannawar/nota/internal/mdnote"
 	"github.com/vishnu-kyatannawar/nota/internal/vault"
@@ -53,6 +56,9 @@ type Options struct {
 	Folder string
 	// CreateOnWeekends decides whether Saturday and Sunday get a note at all.
 	CreateOnWeekends bool
+	// NewID mints ids for seeded items. Injectable so tests can pin them down;
+	// defaults to a ULID, which sorts by creation time.
+	NewID func() string
 }
 
 // Manager creates and rolls over the daily notes.
@@ -65,6 +71,11 @@ type Manager struct {
 func New(v *vault.Vault, opts Options) *Manager {
 	if opts.Folder == "" {
 		opts.Folder = "Workplans"
+	}
+	if opts.NewID == nil {
+		opts.NewID = func() string {
+			return ulid.MustNew(ulid.Timestamp(time.Now()), rand.Reader).String()
+		}
 	}
 	return &Manager{vault: v, opts: opts}
 }
@@ -204,6 +215,9 @@ func (m *Manager) seedRecurring(day time.Time, existing []mdnote.Item) ([]mdnote
 			continue
 		}
 		out = append(out, mdnote.Item{
+			// A seeded item needs its own id like any other: without one the
+			// editor cannot address it to tick, retext or delete it.
+			ID:        m.opts.NewID(),
 			Text:      tpl.Text,
 			CreatedAt: stamp,
 			Recurring: tpl.ID,
