@@ -22,6 +22,8 @@ func NewWorkplanService(core *Core) *WorkplanService { return &WorkplanService{c
 // can change. Timestamps, carry counters and recurring ids are metadata the
 // editor never sees, and are preserved by id on save.
 type ItemInput struct {
+	Kind  string   `json:"kind"`
+	Level int      `json:"level"`
 	ID    string   `json:"id"`
 	Text  string   `json:"text"`
 	Done  bool     `json:"done"`
@@ -70,7 +72,11 @@ func (w *WorkplanService) SaveItems(path string, items []ItemInput) ([]mdnote.It
 	now := time.Now().Format("15:04")
 	incoming := make([]mdnote.Item, 0, len(items))
 	for _, in := range items {
-		it := mdnote.Item{ID: in.ID, Text: in.Text, Done: in.Done, Depth: in.Depth, Body: in.Body}
+		it := mdnote.Item{Kind: in.Kind, Level: in.Level, ID: in.ID, Text: in.Text, Done: in.Done, Depth: in.Depth, Body: in.Body}
+		if it.Kind == mdnote.KindHeading {
+			incoming = append(incoming, it) // headings carry no id or timestamp
+			continue
+		}
 		if it.ID == "" {
 			it.ID = newID()
 			it.CreatedAt = now

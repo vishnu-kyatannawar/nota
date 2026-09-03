@@ -50,6 +50,14 @@ export function SaveWindow(w: config$0.Window): $CancellablePromise<void> {
 }
 
 /**
+ * SetFonts persists the chosen typography. Unknown ids fall back to the defaults
+ * on the next load, so a stale value can never leave the interface fontless.
+ */
+export function SetFonts(f: config$0.Fonts): $CancellablePromise<void> {
+    return $Call.ByID(1349400413, f);
+}
+
+/**
  * SetTheme persists the theme choice: system, light or dark.
  */
 export function SetTheme(theme: string): $CancellablePromise<void> {

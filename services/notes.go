@@ -33,8 +33,10 @@ type Note struct {
 	Title   string     `json:"title"`
 }
 
-// NoteItem is one action item, flattened for the editor.
+// NoteItem is one action item or group heading, flattened for the editor.
 type NoteItem struct {
+	Kind      string   `json:"kind"`
+	Level     int      `json:"level"`
 	ID        string   `json:"id"`
 	Text      string   `json:"text"`
 	Done      bool     `json:"done"`
@@ -286,6 +288,8 @@ func toNote(path string, n *mdnote.Note) *Note {
 			body = []string{}
 		}
 		out.Items = append(out.Items, NoteItem{
+			Kind:      it.Kind,
+			Level:     it.Level,
 			ID:        it.ID,
 			Text:      it.Text,
 			Done:      it.Done,

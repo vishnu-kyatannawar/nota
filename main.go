@@ -25,6 +25,13 @@ var version = "dev"
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// The window's own icon. Without it GTK shows the toolkit default (a "W" in a
+// yellow circle) in the title bar, Alt-Tab and the taskbar; the launcher entry
+// has its own copy via install.sh.
+//
+//go:embed build/appicon.png
+var appIcon []byte
+
 func init() {
 	// The frontend listens for these; registering them gives the generated
 	// bindings a typed API for each.
@@ -53,6 +60,7 @@ func run() error {
 	app := application.New(application.Options{
 		Name:        "Nota",
 		Description: "Daily workplans and notes, stored as plain markdown",
+		Icon:        appIcon,
 		Services: []application.Service{
 			application.NewService(services.NewAppService(core)),
 			application.NewService(services.NewNotesService(core)),
