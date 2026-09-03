@@ -1,26 +1,120 @@
 @import "tailwindcss";
 
-/* The app is a writing surface first, so the palette stays out of the way and
-   the type is sized for long reading rather than for dashboard density. */
-@theme {
-  --color-surface: #141416;
-  --color-surface-raised: #1c1c1f;
-  --color-surface-border: #2a2a2e;
-  --color-ink: #e8e8ea;
-  --color-ink-muted: #9a9aa2;
-  --color-accent: #d4a24c;
+/*
+ * Light is the default; dark applies either by explicit choice (data-theme on
+ * <html>) or by following the OS when no choice is made. Tailwind reads these
+ * through @theme inline, so `bg-surface` and friends switch at runtime without
+ * a rebuild.
+ */
+:root {
+  color-scheme: light;
+  --surface: #fafafa;
+  --surface-raised: #ffffff;
+  --surface-sunken: #f1f1f4;
+  --border: #e6e6ea;
+  --border-strong: #cfcfd6;
+  --ink: #1b1b22;
+  --ink-muted: #6b6b76;
+  --ink-faint: #a0a0aa;
+  --accent: #5b5bd6;
+  --accent-ink: #ffffff;
+  --accent-soft: #eaeafb;
+  --success: #2f9e6b;
+  --danger: #d64545;
+  --code-bg: #f4f4f7;
+  --selection: #dcdcf8;
 }
 
-html,
-body,
-#root {
-  height: 100%;
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface: #0f1014;
+  --surface-raised: #16171d;
+  --surface-sunken: #0a0b0e;
+  --border: #23242c;
+  --border-strong: #34353f;
+  --ink: #e8e8ec;
+  --ink-muted: #9a9aa6;
+  --ink-faint: #5d5d68;
+  --accent: #7b7bea;
+  --accent-ink: #ffffff;
+  --accent-soft: #23234a;
+  --success: #4fbf8a;
+  --danger: #e06666;
+  --code-bg: #121319;
+  --selection: #2b2b5c;
 }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface: #0f1014;
+    --surface-raised: #16171d;
+    --surface-sunken: #0a0b0e;
+    --border: #23242c;
+    --border-strong: #34353f;
+    --ink: #e8e8ec;
+    --ink-muted: #9a9aa6;
+    --ink-faint: #5d5d68;
+    --accent: #7b7bea;
+    --accent-ink: #ffffff;
+    --accent-soft: #23234a;
+    --success: #4fbf8a;
+    --danger: #e06666;
+    --code-bg: #121319;
+    --selection: #2b2b5c;
+  }
+}
+
+@theme inline {
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-code: var(--code-bg);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Inter", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+}
+
+html, body, #root { height: 100%; }
 
 body {
   margin: 0;
-  background: var(--color-surface);
-  color: var(--color-ink);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
+
+::selection { background: var(--selection); }
+
+/* One focus treatment everywhere, and only when the keyboard put it there. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+input:focus-visible, textarea:focus-visible { outline-offset: 0; }
+
+/* Scrollbars that match the surface instead of the OS default grey. */
+* { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+
+/* CodeMirror inherits the app palette in both themes. */
+.cm-editor { background: var(--code-bg) !important; font-size: 13px; }
+.cm-editor .cm-gutters { background: transparent !important; border-right: 0 !important; color: var(--ink-faint) !important; }
+.cm-editor .cm-activeLine, .cm-editor .cm-activeLineGutter { background: color-mix(in srgb, var(--accent) 6%, transparent) !important; }
+.cm-editor.cm-focused { outline: none !important; }

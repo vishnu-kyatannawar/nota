@@ -20,6 +20,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -566,4 +567,64 @@ func (n *Note) AddItemMinutes(id string, delta int) bool {
 	}
 	it.SetMinutes(total)
 	return true
+}
+
+// ReplaceItems swaps the note's action items for the given list, keeping the
+// frontmatter and trailing body exactly as they were. Done transitions are
+// stamped with the current clock; see ReplaceItemsAt.
+func (n *Note) ReplaceItems(items []Item) {
+	n.ReplaceItemsAt(items, time.Now().Format("15:04"))
+}
+
+// ReplaceItemsAt is ReplaceItems with an explicit clock, for tests.
+//
+// Incoming items carry only what an editor knows — id, text, done, depth, body.
+// Everything else is metadata the editor never sees (original creation time,
+// carry counters, recurring id, completion stamp), so it is looked up by id from
+// the existing item and preserved. Ticking is treated as a transition rather
+// than a flag: the completion time is stamped when an item becomes done and
+// cleared when it is reopened, and an item that stays done keeps its stamp.
+func (n *Note) ReplaceItemsAt(items []Item, at string) {
+	existing := make(map[string]Item, len(n.Items))
+	for _, it := range n.Items {
+		if it.ID != "" {
+			existing[it.ID] = it
+		}
+	}
+
+	out := make([]Item, 0, len(items))
+	for _, in := range items {
+		it := Item{
+			ID:    in.ID,
+			Text:  strings.TrimSpace(in.Text),
+			Done:  in.Done,
+			Depth: in.Depth,
+			Body:  in.Body,
+		}
+		if in.CreatedAt != "" {
+			it.CreatedAt = in.CreatedAt
+		}
+
+		if prev, ok := existing[in.ID]; ok {
+			it.CreatedAt = prev.CreatedAt
+			it.From = prev.From
+			it.Carried = prev.Carried
+			it.Recurring = prev.Recurring
+			switch {
+			case in.Done && prev.Done:
+				it.DoneAt = prev.DoneAt
+			case in.Done && !prev.Done:
+				it.DoneAt = at
+			default:
+				it.DoneAt = ""
+			}
+		} else if in.Done {
+			it.DoneAt = at
+		}
+		if it.Depth < 0 {
+			it.Depth = 0
+		}
+		out = append(out, it)
+	}
+	n.Items = out
 }

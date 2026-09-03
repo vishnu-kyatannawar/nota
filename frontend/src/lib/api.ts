@@ -7,13 +7,9 @@ import {
   SearchService,
   BackupService,
 } from "../../bindings/github.com/vishnu-kyatannawar/nota/services";
+import type { Theme } from "./theme";
 
-export type Node = {
-  name: string;
-  path: string;
-  isFolder: boolean;
-  children?: Node[];
-};
+export type Node = { name: string; path: string; isFolder: boolean; children?: Node[] };
 
 export type NoteItem = {
   id: string;
@@ -53,12 +49,28 @@ export type Workplan = {
   done: number;
 };
 
+export type ItemInput = { id: string; text: string; done: boolean; depth: number; body: string[] };
+export type SavedItem = {
+  ID: string; Text: string; Done: boolean; Depth: number; Body: string[] | null;
+  CreatedAt: string; DoneAt: string; From: string; Carried: number; Recurring: string;
+};
+
 export type Hit = { path: string; snippet: string };
 export type Label = { name: string; count: number };
 export type HoursSummary = { from: string; to: string; minutes: number; hours: string };
+export type Info = {
+  version: string; vaultPath: string; workplanDir: string; theme: Theme;
+  repository: string; website: string; releases: string; licence: string;
+};
+export type Settings = {
+  vaultPath: string; workplanFolder: string; createOnWeekends: boolean; theme: Theme;
+};
 
 export const api = {
-  info: () => AppService.GetInfo(),
+  info: () => AppService.GetInfo() as Promise<Info>,
+  settings: () => AppService.GetSettings() as Promise<Settings>,
+  saveSettings: (s: Settings) => AppService.SaveSettings(s as never),
+  setTheme: (theme: Theme) => AppService.SetTheme(theme),
 
   tree: () => NotesService.Tree() as Promise<Node>,
   note: (path: string) => NotesService.Get(path) as Promise<Note>,
@@ -73,15 +85,8 @@ export const api = {
   workplans: () => WorkplanService.List() as Promise<Workplan[]>,
   setHours: (path: string, hours: string) => WorkplanService.SetHours(path, hours),
   setDayType: (path: string, dayType: string) => WorkplanService.SetDayType(path, dayType),
-  suggestedMinutes: (path: string) => WorkplanService.SuggestedMinutes(path),
-  addItem: (path: string, text: string, depth: number) => WorkplanService.AddItem(path, text, depth),
-  setItemDone: (path: string, id: string, done: boolean) => WorkplanService.SetItemDone(path, id, done),
-  setItemText: (path: string, id: string, text: string) => WorkplanService.SetItemText(path, id, text),
-  addItemMinutes: (path: string, id: string, minutes: number) =>
-    WorkplanService.AddItemMinutes(path, id, minutes),
-  removeItem: (path: string, id: string) => WorkplanService.RemoveItem(path, id),
-  setItemBody: (path: string, id: string, body: string[]) =>
-    WorkplanService.SetItemBody(path, id, body),
+  saveItems: (path: string, items: ItemInput[]) =>
+    WorkplanService.SaveItems(path, items as never) as Promise<SavedItem[]>,
 
   search: (query: string) => SearchService.Search(query) as Promise<Hit[]>,
   labels: () => SearchService.Labels() as Promise<Label[]>,
@@ -93,20 +98,17 @@ export const api = {
   restore: (bundle: string) => BackupService.Restore(bundle),
 };
 
-/** Splits an item's text into the parts the row renders separately. */
+/** The #labels written in an item's text, and the text with them removed. */
 export function partsOf(text: string) {
   const labels = [...text.matchAll(/#([\p{L}\p{N}][\p{L}\p{N}_/-]*)/gu)].map((m) => m[1]);
-  const time = text.match(/\[(\d{2}:[0-5]\d)\]/);
-  const plain = text
-    .replace(/\[(\d{2}:[0-5]\d)\]/g, "")
-    .replace(/#([\p{L}\p{N}][\p{L}\p{N}_/-]*)/gu, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  return { plain, labels, time: time ? time[1] : "" };
+  return { labels };
 }
 
-/** Formats minutes as hh:mm, the only time format the app uses. */
+/** Formats minutes as hh:mm. */
 export function hhmm(minutes: number): string {
   const m = Math.max(0, minutes);
   return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 }
+
+/** Validates the only time format the app accepts. */
+export const HHMM = /^\d{2,}:[0-5]\d$/;

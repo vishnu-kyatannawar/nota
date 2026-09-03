@@ -18,6 +18,24 @@ export interface Info {
     "version": string;
     "vaultPath": string;
     "workplanDir": string;
+    "theme": string;
+    "repository": string;
+    "website": string;
+    "releases": string;
+    "licence": string;
+}
+
+/**
+ * ItemInput is an action item as the editor holds it: only the fields a person
+ * can change. Timestamps, carry counters and recurring ids are metadata the
+ * editor never sees, and are preserved by id on save.
+ */
+export interface ItemInput {
+    "id": string;
+    "text": string;
+    "done": boolean;
+    "depth": number;
+    "body": string[] | null;
 }
 
 /**

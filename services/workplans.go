@@ -10,13 +10,24 @@ import (
 )
 
 // WorkplanService is the frontend's access to the dated daily notes and to
-// editing action items.
+// saving a note's action items.
 type WorkplanService struct {
 	core *Core
 }
 
 // NewWorkplanService returns the service bound as WorkplanService.
 func NewWorkplanService(core *Core) *WorkplanService { return &WorkplanService{core: core} }
+
+// ItemInput is an action item as the editor holds it: only the fields a person
+// can change. Timestamps, carry counters and recurring ids are metadata the
+// editor never sees, and are preserved by id on save.
+type ItemInput struct {
+	ID    string   `json:"id"`
+	Text  string   `json:"text"`
+	Done  bool     `json:"done"`
+	Depth int      `json:"depth"`
+	Body  []string `json:"body"`
+}
 
 // EnsureToday creates today's workplan if it is missing, rolling unfinished
 // items forward, and returns its path. An empty path means today is a weekend
@@ -40,7 +51,47 @@ func (w *WorkplanService) EnsureToday() (string, error) {
 }
 
 // List returns the workplans newest first, for the sidebar.
-func (w *WorkplanService) List() ([]index.Workplan, error) { return w.core.index.Workplans() }
+func (w *WorkplanService) List() ([]index.Workplan, error) {
+	plans, err := w.core.index.Workplans()
+	if err != nil {
+		return nil, err
+	}
+	if plans == nil {
+		plans = []index.Workplan{}
+	}
+	return plans, nil
+}
+
+// SaveItems replaces a note's action items in one write. This is the only way
+// the editor changes items: it edits a local copy and sends the whole list, so
+// keyboard navigation and multi-line paste never wait on a round trip. Items
+// with no id are new and get one minted here, stamped with the current time.
+func (w *WorkplanService) SaveItems(path string, items []ItemInput) ([]mdnote.Item, error) {
+	now := time.Now().Format("15:04")
+	incoming := make([]mdnote.Item, 0, len(items))
+	for _, in := range items {
+		it := mdnote.Item{ID: in.ID, Text: in.Text, Done: in.Done, Depth: in.Depth, Body: in.Body}
+		if it.ID == "" {
+			it.ID = newID()
+			it.CreatedAt = now
+		}
+		incoming = append(incoming, it)
+	}
+
+	var saved []mdnote.Item
+	err := w.core.mutate(path, func(n *mdnote.Note) error {
+		n.ReplaceItemsAt(incoming, now)
+		saved = n.Items
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if saved == nil {
+		saved = []mdnote.Item{}
+	}
+	return saved, nil
+}
 
 // SetHours records the hours worked on a day, in hh:mm.
 func (w *WorkplanService) SetHours(path, hours string) error {
@@ -68,85 +119,16 @@ func (w *WorkplanService) SetDayType(path, dayType string) error {
 	return w.core.index.Update(path, note)
 }
 
-// SuggestedMinutes totals the time logged against a day's items. It pre-fills
-// the hours field and is never written in automatically, since much of a working
-// day never lands on an action item.
-func (w *WorkplanService) SuggestedMinutes(path string) (int, error) {
-	return w.core.plans.SuggestedMinutes(path)
-}
-
-// AddItem appends an action item to a note and returns its new id.
-func (w *WorkplanService) AddItem(path, text string, depth int) (string, error) {
-	if depth < 0 {
-		depth = 0
-	}
-	id := newID()
-	err := w.core.mutate(path, func(n *mdnote.Note) error {
-		n.AddItem(id, text, time.Now().Format("15:04"), depth)
-		return nil
-	})
-	if err != nil {
-		return "", err
-	}
-	return id, nil
-}
-
-// SetItemDone ticks or unticks an item, stamping the completion time.
-func (w *WorkplanService) SetItemDone(path, id string, done bool) error {
-	return w.core.mutate(path, func(n *mdnote.Note) error {
-		if !n.SetDone(id, done, time.Now().Format("15:04")) {
-			return notFound(id)
-		}
-		return nil
-	})
-}
-
-// SetItemText replaces an item's visible text, labels and time token included.
-func (w *WorkplanService) SetItemText(path, id, text string) error {
-	return w.core.mutate(path, func(n *mdnote.Note) error {
-		if !n.SetItemText(id, text) {
-			return notFound(id)
-		}
-		return nil
-	})
-}
-
-// AddItemMinutes adds to the time logged against an item.
-func (w *WorkplanService) AddItemMinutes(path, id string, minutes int) error {
-	return w.core.mutate(path, func(n *mdnote.Note) error {
-		if !n.AddItemMinutes(id, minutes) {
-			return notFound(id)
-		}
-		return nil
-	})
-}
-
-// RemoveItem deletes an item and anything nested beneath it.
-func (w *WorkplanService) RemoveItem(path, id string) error {
-	return w.core.mutate(path, func(n *mdnote.Note) error {
-		if !n.RemoveItem(id) {
-			return notFound(id)
-		}
-		return nil
-	})
-}
-
-// SetItemBody replaces the free-form markdown under an item, which is where
-// code, JSON and prose belonging to that item live.
-func (w *WorkplanService) SetItemBody(path, id string, body []string) error {
-	return w.core.mutate(path, func(n *mdnote.Note) error {
-		it := n.FindItem(id)
-		if it == nil {
-			return notFound(id)
-		}
-		it.Body = body
-		return nil
-	})
-}
-
 // Templates returns the configured recurring items.
 func (w *WorkplanService) Templates() ([]workplan.Template, error) {
-	return w.core.plans.Templates()
+	tpls, err := w.core.plans.Templates()
+	if err != nil {
+		return nil, err
+	}
+	if tpls == nil {
+		tpls = []workplan.Template{}
+	}
+	return tpls, nil
 }
 
 // SaveTemplates replaces the recurring items file with the given lines.

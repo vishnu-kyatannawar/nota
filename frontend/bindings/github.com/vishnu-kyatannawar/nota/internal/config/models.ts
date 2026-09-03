@@ -21,4 +21,27 @@ export interface Settings {
      * weekend gets a note at all.
      */
     "createOnWeekends": boolean;
+
+    /**
+     * Theme is "system", "light" or "dark".
+     */
+    "theme": string;
+
+    /**
+     * Window remembers where the window was left; see Window.Valid.
+     */
+    "window": Window;
+}
+
+/**
+ * Window is the last size and position the user left the window at, so it can
+ * reopen the same way. The zero value means "never saved", which is how a first
+ * launch is told apart from a remembered one.
+ */
+export interface Window {
+    "x": number;
+    "y": number;
+    "width": number;
+    "height": number;
+    "maximised": boolean;
 }

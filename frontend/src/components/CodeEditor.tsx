@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { EditorView, basicSetup } from "codemirror";
-import { EditorState } from "@codemirror/state";
+import { Compartment, EditorState } from "@codemirror/state";
 import { keymap } from "@codemirror/view";
 import { markdown } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
@@ -12,20 +12,20 @@ type Props = {
   onExit?: () => void;
   minHeight?: string;
   autoFocus?: boolean;
+  dark: boolean;
 };
 
+const themeCompartment = new Compartment();
+
 /**
- * Markdown source editor, used for an item's body and for the whole-note raw
- * mode. CodeMirror is here for the same reason Obsidian and Joplin use it: this
- * is markdown source, with fenced code inside it that wants real highlighting.
- * `languages` gives the fences their own grammars, so a ```go block reads as Go.
+ * Markdown source editor for an item's notes and for the whole-note raw mode.
+ * `languages` gives fenced blocks their own grammars, so ```go reads as Go.
+ * The colour theme lives in a Compartment so it can follow the app theme
+ * without rebuilding the editor and losing the cursor.
  */
-export function CodeEditor({ value, onChange, onExit, minHeight = "8rem", autoFocus }: Props) {
+export function CodeEditor({ value, onChange, onExit, minHeight = "8rem", autoFocus, dark }: Props) {
   const host = useRef<HTMLDivElement | null>(null);
   const view = useRef<EditorView | null>(null);
-  // Held in a ref so changing the handler does not tear down and rebuild the
-  // editor, which would lose the cursor position mid-typing. Assigned in an
-  // effect rather than during render, which would be a side effect in render.
   const handlers = useRef({ onChange, onExit });
   useEffect(() => {
     handlers.current = { onChange, onExit };
@@ -33,49 +33,39 @@ export function CodeEditor({ value, onChange, onExit, minHeight = "8rem", autoFo
 
   useEffect(() => {
     if (!host.current) return;
-
     const state = EditorState.create({
       doc: value,
       extensions: [
         basicSetup,
         markdown({ codeLanguages: languages }),
-        oneDark,
+        themeCompartment.of(dark ? oneDark : []),
         EditorView.lineWrapping,
-        keymap.of([
-          {
-            key: "Mod-e",
-            run: () => {
-              handlers.current.onExit?.();
-              return true;
-            },
-          },
-        ]),
-        EditorView.updateListener.of((update) => {
-          if (update.docChanged) handlers.current.onChange(update.state.doc.toString());
+        keymap.of([{ key: "Mod-e", run: () => { handlers.current.onExit?.(); return true; } }]),
+        EditorView.updateListener.of((u) => {
+          if (u.docChanged) handlers.current.onChange(u.state.doc.toString());
         }),
         EditorView.theme({
-          "&": { minHeight, fontSize: "13px", background: "transparent" },
-          ".cm-scroller": { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" },
-          "&.cm-focused": { outline: "none" },
+          "&": { minHeight, fontSize: "13px" },
+          ".cm-scroller": { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", lineHeight: "1.55" },
+          ".cm-content": { padding: "8px 0" },
         }),
       ],
     });
-
     const editor = new EditorView({ state, parent: host.current });
     view.current = editor;
     if (autoFocus) editor.focus();
-
     return () => {
       editor.destroy();
       view.current = null;
     };
-    // Rebuilding on every keystroke would fight the editor's own state, so the
-    // document is only seeded once and kept in sync by the effect below.
+    // The document is seeded once; later values are adopted by the effect below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Adopt a value that changed outside this editor — switching notes, or a file
-  // edited in another application — without disturbing local typing.
+  useEffect(() => {
+    view.current?.dispatch({ effects: themeCompartment.reconfigure(dark ? oneDark : []) });
+  }, [dark]);
+
   useEffect(() => {
     const editor = view.current;
     if (!editor) return;
@@ -84,5 +74,5 @@ export function CodeEditor({ value, onChange, onExit, minHeight = "8rem", autoFo
     editor.dispatch({ changes: { from: 0, to: current.length, insert: value } });
   }, [value]);
 
-  return <div ref={host} className="overflow-hidden rounded border border-surface-border" />;
+  return <div ref={host} className="overflow-hidden rounded-md border border-border" />;
 }

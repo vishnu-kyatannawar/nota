@@ -19,7 +19,9 @@ import * as vault$0 from "../internal/vault/models.js";
 import * as $models from "./models.js";
 
 /**
- * Create makes a new empty note and returns its path.
+ * Create makes a new empty note and returns its path. If the path is taken the
+ * name gets a numeric suffix — "Untitled 2" — rather than overwriting a note the
+ * user cannot see.
  */
 export function Create(path: string): $CancellablePromise<string> {
     return $Call.ByID(2629606293, path);

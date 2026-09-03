@@ -53,6 +53,10 @@ jobs:
         working-directory: frontend
         run: pnpm run typecheck
 
+      - name: Test frontend
+        working-directory: frontend
+        run: pnpm test
+
       # The Go binary embeds frontend/dist, so the frontend is built first.
       - name: Build frontend
         working-directory: frontend

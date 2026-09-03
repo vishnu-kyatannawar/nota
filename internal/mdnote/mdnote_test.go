@@ -426,3 +426,76 @@ func TestAddItemMinutesAccumulatesAndFloorsAtZero(t *testing.T) {
 		t.Errorf("Minutes() = %d, want 0 — time logged cannot go negative", got)
 	}
 }
+
+func TestReplaceItemsKeepsFrontmatterAndBody(t *testing.T) {
+	src := "---\ntype: workplan\ndate: 2026-09-02\nhours: \"03:00\"\ndaytype: work\n---\n\n" +
+		"- [ ] Old one <!--n id:A1 t:09:00-->\n\n## Notes\n\nKeep me.\n"
+	n, err := Parse(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	n.ReplaceItems([]Item{
+		{ID: "A1", Text: "Old one, retitled", CreatedAt: "09:00"},
+		{ID: "B2", Text: "Brand new", CreatedAt: "10:15", Depth: 1},
+	})
+
+	got := Serialize(n)
+	want := "---\ntype: workplan\ndate: 2026-09-02\nhours: \"03:00\"\ndaytype: work\n---\n\n" +
+		"- [ ] Old one, retitled <!--n id:A1 t:09:00-->\n" +
+		"  - [ ] Brand new <!--n id:B2 t:10:15-->\n\n## Notes\n\nKeep me.\n"
+	if got != want {
+		t.Errorf("ReplaceItems changed more than the items.\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+// Ticking is a transition, not a flag: the completion time is stamped when an
+// item becomes done and cleared when it is reopened, whatever the caller sends.
+func TestReplaceItemsStampsDoneTransitions(t *testing.T) {
+	n := &Note{}
+	n.AddItem("A", "Was open", "09:00", 0)
+	n.AddItem("B", "Was done", "09:01", 0)
+	n.SetDone("B", true, "09:30")
+
+	n.ReplaceItemsAt([]Item{
+		{ID: "A", Text: "Was open", Done: true, CreatedAt: "09:00"},  // open -> done
+		{ID: "B", Text: "Was done", Done: false, CreatedAt: "09:01"}, // done -> open
+	}, "11:45")
+
+	if a := n.FindItem("A"); a.DoneAt != "11:45" {
+		t.Errorf("A.DoneAt = %q, want the transition time 11:45", a.DoneAt)
+	}
+	if b := n.FindItem("B"); b.DoneAt != "" {
+		t.Errorf("B.DoneAt = %q, want cleared on reopen", b.DoneAt)
+	}
+}
+
+func TestReplaceItemsPreservesExistingDoneStamp(t *testing.T) {
+	n := &Note{}
+	n.AddItem("A", "Done earlier", "09:00", 0)
+	n.SetDone("A", true, "09:30")
+
+	// Still done; the stamp must not move to "now".
+	n.ReplaceItemsAt([]Item{{ID: "A", Text: "Done earlier", Done: true, CreatedAt: "09:00"}}, "13:00")
+
+	if a := n.FindItem("A"); a.DoneAt != "09:30" {
+		t.Errorf("DoneAt = %q, want the original 09:30", a.DoneAt)
+	}
+}
+
+// Metadata the editor does not send — carry counters, recurring id, original
+// creation time — survives a replace keyed on the item id.
+func TestReplaceItemsKeepsRolloverMetadataById(t *testing.T) {
+	src := "- [ ] Carried #x <!--n id:A1 t:09:40 from:2026-09-01 carried:3 rec:check-calendar-->\n"
+	n, err := Parse(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	n.ReplaceItemsAt([]Item{{ID: "A1", Text: "Carried #x, edited"}}, "12:00")
+
+	got := n.FindItem("A1")
+	if got.From != "2026-09-01" || got.Carried != 3 || got.Recurring != "check-calendar" || got.CreatedAt != "09:40" {
+		t.Errorf("rollover metadata lost: %+v", got)
+	}
+}

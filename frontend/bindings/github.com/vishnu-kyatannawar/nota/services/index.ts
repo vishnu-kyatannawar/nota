@@ -17,6 +17,7 @@ export {
 export type {
     HoursSummary,
     Info,
+    ItemInput,
     Note,
     NoteItem
 } from "./models.js";

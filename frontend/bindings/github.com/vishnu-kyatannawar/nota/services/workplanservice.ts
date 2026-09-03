@@ -3,7 +3,7 @@
 
 /**
  * WorkplanService is the frontend's access to the dated daily notes and to
- * editing action items.
+ * saving a note's action items.
  * @module
  */
 
@@ -16,21 +16,14 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 import * as index$0 from "../internal/index/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as mdnote$0 from "../internal/mdnote/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as workplan$0 from "../internal/workplan/models.js";
 
-/**
- * AddItem appends an action item to a note and returns its new id.
- */
-export function AddItem(path: string, text: string, depth: number): $CancellablePromise<string> {
-    return $Call.ByID(3519571340, path, text, depth);
-}
-
-/**
- * AddItemMinutes adds to the time logged against an item.
- */
-export function AddItemMinutes(path: string, id: string, minutes: number): $CancellablePromise<void> {
-    return $Call.ByID(207789805, path, id, minutes);
-}
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as $models from "./models.js";
 
 /**
  * EnsureToday creates today's workplan if it is missing, rolling unfinished
@@ -49,10 +42,13 @@ export function List(): $CancellablePromise<index$0.Workplan[] | null> {
 }
 
 /**
- * RemoveItem deletes an item and anything nested beneath it.
+ * SaveItems replaces a note's action items in one write. This is the only way
+ * the editor changes items: it edits a local copy and sends the whole list, so
+ * keyboard navigation and multi-line paste never wait on a round trip. Items
+ * with no id are new and get one minted here, stamped with the current time.
  */
-export function RemoveItem(path: string, id: string): $CancellablePromise<void> {
-    return $Call.ByID(2797701871, path, id);
+export function SaveItems(path: string, items: $models.ItemInput[] | null): $CancellablePromise<mdnote$0.Item[] | null> {
+    return $Call.ByID(2739606815, path, items);
 }
 
 /**
@@ -74,37 +70,6 @@ export function SetDayType(path: string, dayType: string): $CancellablePromise<v
  */
 export function SetHours(path: string, hours: string): $CancellablePromise<void> {
     return $Call.ByID(4153139527, path, hours);
-}
-
-/**
- * SetItemBody replaces the free-form markdown under an item, which is where
- * code, JSON and prose belonging to that item live.
- */
-export function SetItemBody(path: string, id: string, body: string[] | null): $CancellablePromise<void> {
-    return $Call.ByID(3636351647, path, id, body);
-}
-
-/**
- * SetItemDone ticks or unticks an item, stamping the completion time.
- */
-export function SetItemDone(path: string, id: string, done: boolean): $CancellablePromise<void> {
-    return $Call.ByID(2643528627, path, id, done);
-}
-
-/**
- * SetItemText replaces an item's visible text, labels and time token included.
- */
-export function SetItemText(path: string, id: string, text: string): $CancellablePromise<void> {
-    return $Call.ByID(1345914944, path, id, text);
-}
-
-/**
- * SuggestedMinutes totals the time logged against a day's items. It pre-fills
- * the hours field and is never written in automatically, since much of a working
- * day never lands on an action item.
- */
-export function SuggestedMinutes(path: string): $CancellablePromise<number> {
-    return $Call.ByID(3772892904, path);
 }
 
 /**

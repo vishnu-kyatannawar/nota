@@ -1,32 +1,139 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import type { Note } from "../lib/api";
-import { api, hhmm } from "../lib/api";
+import { api, HHMM } from "../lib/api";
+import { blankItem, fromServer, initialState, mergeSaved, reducer, toInputs } from "../lib/items";
 import { CodeEditor } from "./CodeEditor";
 import { ItemRow } from "./ItemRow";
 
 type Props = {
-  note: Note;
-  onChanged: () => void;
+  path: string;
+  dark: boolean;
+  /** Bumped by the parent when the file changed on disk. */
+  reloadToken: number;
+  onShellChanged: () => void;
+  onError: (message: string) => void;
 };
 
 const DAY_TYPES = ["work", "weekend", "leave", "holiday"] as const;
+const SAVE_DELAY = 400;
 
-export function NoteView({ note, onChanged }: Props) {
+export function NoteView({ path, dark, reloadToken, onShellChanged, onError }: Props) {
+  const [note, setNote] = useState<Note | null>(null);
+  const [state, dispatch] = useReducer(reducer, initialState);
   const [raw, setRaw] = useState<string | null>(null);
-  const [focusId, setFocusId] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState<"idle" | "saving" | "saved">("idle");
+  const [editingHours, setEditingHours] = useState(false);
+  const [hoursDraft, setHoursDraft] = useState("");
 
-  const isWorkplan = note.type === "workplan";
-  const logged = useMemo(() => note.items.reduce((sum, i) => sum + i.minutes, 0), [note.items]);
+  // Refs let the save and reload logic see the latest state without being
+  // re-created on every keystroke.
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  });
+  const pathRef = useRef(path);
+  const inFlight = useRef(false);
+  const reloadPending = useRef(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Ctrl+E flips the whole note to its markdown source and back. Bound on the
-  // document so it works wherever focus happens to be within the note.
+  const load = useCallback(
+    (p: string) =>
+      api
+        .note(p)
+        .then((n) => {
+          if (pathRef.current !== p) return;
+          setNote(n);
+          const items = fromServer(n.items);
+          // An empty note shows one blank row to type on; it is not an item
+          // until it has text, so this does not mark the note dirty.
+          dispatch({ type: "replaceAll", items: items.length ? items : [blankItem()] });
+          if (items.length === 0) dispatch({ type: "focus", index: 0 });
+        })
+        .catch((e) => onError(String(e))),
+    [onError],
+  );
+
+  const save = useCallback(async (): Promise<void> => {
+    const s = stateRef.current;
+    const p = pathRef.current;
+    if (!s.dirty || inFlight.current) return;
+    inFlight.current = true;
+    setSaving("saving");
+    const { inputs, kept } = toInputs(s.items);
+    try {
+      const saved = await api.saveItems(p, inputs);
+      if (pathRef.current !== p) return;
+      const latest = stateRef.current;
+      const merged = mergeSaved(
+        latest.items,
+        saved.map((it) => ({ id: it.ID, createdAt: it.CreatedAt, doneAt: it.DoneAt, from: it.From, carried: it.Carried, recurring: it.Recurring })),
+        kept,
+      );
+      // If the user kept typing during the round trip the note is still dirty
+      // and another save will follow; otherwise it is clean now.
+      dispatch({ type: "replaceAll", items: merged, dirty: latest.items !== s.items });
+      setSaving("saved");
+      onShellChanged();
+    } catch (e) {
+      onError(String(e));
+      setSaving("idle");
+    } finally {
+      inFlight.current = false;
+      if (reloadPending.current && !stateRef.current.dirty) {
+        reloadPending.current = false;
+        void load(pathRef.current);
+      }
+    }
+  }, [load, onError, onShellChanged]);
+
+  // Switching notes flushes whatever is unsaved on the old one, then loads.
+  useEffect(() => {
+    const previous = pathRef.current;
+    if (previous !== path && stateRef.current.dirty) {
+      const s = stateRef.current;
+      const { inputs } = toInputs(s.items);
+      void api.saveItems(previous, inputs).then(onShellChanged).catch((e) => onError(String(e)));
+    }
+    pathRef.current = path;
+    void load(path);
+  }, [path, load, onError, onShellChanged]);
+
+  // Switching notes drops the raw-mode buffer and any half-edited hours field,
+  // so neither leaks from one note into the next. Adjusting state during render
+  // is React's own pattern for this.
+  const [lastPath, setLastPath] = useState(path);
+  if (path !== lastPath) {
+    setLastPath(path);
+    setRaw(null);
+    setEditingHours(false);
+  }
+
+  // Debounced save while typing.
+  useEffect(() => {
+    if (!state.dirty) return;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => void save(), SAVE_DELAY);
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+    };
+  }, [state, save]);
+
+  // A change on disk is adopted only when nothing local is unsaved, so an
+  // external edit can never clobber a word mid-typing.
+  useEffect(() => {
+    if (reloadToken === 0) return;
+    if (stateRef.current.dirty || inFlight.current) {
+      reloadPending.current = true;
+      return;
+    }
+    void load(pathRef.current);
+  }, [reloadToken, load]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "e" && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
-        setRaw((current) => (current === null ? "" : null));
+        setRaw((r) => (r === null ? "" : null));
       }
     };
     document.addEventListener("keydown", onKey);
@@ -35,85 +142,57 @@ export function NoteView({ note, onChanged }: Props) {
 
   useEffect(() => {
     if (raw !== "") return;
-    api.raw(note.path).then(setRaw).catch((e) => setError(String(e)));
-  }, [raw, note.path]);
+    api.raw(path).then(setRaw).catch((e) => onError(String(e)));
+  }, [raw, path, onError]);
 
-  // Switching notes drops the raw-mode buffer and the half-typed new item, so
-  // neither leaks from one note into the next.
-  const [lastPath, setLastPath] = useState(note.path);
-  if (note.path !== lastPath) {
-    setLastPath(note.path);
-    setRaw(null);
-    setDraft("");
-  }
+  if (!note) return <main className="flex-1" />;
 
-  const run = async (fn: () => Promise<unknown>) => {
-    try {
-      setError(null);
-      await fn();
-      onChanged();
-    } catch (e) {
-      setError(String(e));
-    }
-  };
+  const isWorkplan = note.type === "workplan";
+  const open = state.items.filter((i) => !i.done && i.text.trim() !== "").length;
+  const done = state.items.filter((i) => i.done).length;
 
-  const addItem = async (text: string, depth: number) => {
-    if (!text.trim()) return;
-    const id = await api.addItem(note.path, text, depth);
-    setFocusId(id);
-    onChanged();
-  };
-
-  const logTime = (id: string) => {
-    const entry = window.prompt("Log time on this item (hh:mm)", "01:00");
-    if (!entry) return;
-    const match = entry.match(/^(\d{1,2}):([0-5]\d)$/);
-    if (!match) {
-      setError(`"${entry}" is not hh:mm — for example 01:20`);
+  const commitHours = async () => {
+    const value = hoursDraft.trim();
+    setEditingHours(false);
+    if (!HHMM.test(value)) {
+      onError(`"${value}" is not hh:mm — for example 07:30`);
       return;
     }
-    void run(() =>
-      api.addItemMinutes(note.path, id, Number(match[1]) * 60 + Number(match[2])),
-    );
+    try {
+      await api.setHours(path, value);
+      setNote({ ...note, hours: value, title: `${note.date} - ${value}` });
+      onShellChanged();
+    } catch (e) {
+      onError(String(e));
+    }
   };
 
-  const setHours = () => {
-    const suggestion = hhmm(logged);
-    const entry = window.prompt(
-      `Hours worked on ${note.date}. The item logs add up to ${suggestion}; this is only a suggestion.`,
-      note.hours || suggestion,
-    );
-    if (!entry) return;
-    void run(() => api.setHours(note.path, entry));
+  const setDayType = async (dayType: string) => {
+    try {
+      await api.setDayType(path, dayType);
+      setNote({ ...note, dayType });
+      onShellChanged();
+    } catch (e) {
+      onError(String(e));
+    }
   };
 
   if (raw !== null) {
     return (
-      <main className="flex min-w-0 flex-1 flex-col p-6">
-        <Header title={note.title} subtitle="Markdown source · Ctrl+E to go back" />
-        {error && <ErrorBar message={error} />}
-        <div className="min-h-0 flex-1 overflow-auto">
-          <CodeEditor
-            value={raw}
-            autoFocus
-            minHeight="24rem"
-            onChange={setRaw}
-            onExit={() => setRaw(null)}
-          />
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <Header note={note} subtitle="Markdown source · Ctrl+E to return" />
+        <div className="min-h-0 flex-1 overflow-auto px-8 pb-4">
+          <CodeEditor value={raw} autoFocus minHeight="24rem" dark={dark} onChange={setRaw} onExit={() => setRaw(null)} />
         </div>
-        <div className="mt-3 flex gap-2">
+        <div className="flex gap-2 border-t border-border px-8 py-3">
           <button
             type="button"
-            onClick={() => void run(async () => { await api.saveRaw(note.path, raw); setRaw(null); })}
-            className="rounded bg-accent px-3 py-1.5 text-sm font-medium text-black"
+            onClick={() => void api.saveRaw(path, raw).then(() => { setRaw(null); void load(path); onShellChanged(); }).catch((e) => onError(String(e)))}
+            className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink hover:opacity-90"
           >
             Save
           </button>
-          <button
-            type="button"
-            onClick={() => setRaw(null)}
-            className="rounded border border-surface-border px-3 py-1.5 text-sm"
-          >
+          <button type="button" onClick={() => setRaw(null)} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-raised">
             Cancel
           </button>
         </div>
@@ -122,122 +201,113 @@ export function NoteView({ note, onChanged }: Props) {
   }
 
   return (
-    <main className="flex min-w-0 flex-1 flex-col overflow-y-auto p-6">
-      <div className="mb-1 flex flex-wrap items-baseline gap-3">
-        <h1 className="text-xl font-bold">{note.title}</h1>
+    <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="flex flex-wrap items-center gap-3 border-b border-border px-8 py-3">
+        <h1 className="text-[15px] font-semibold tracking-tight">
+          {isWorkplan ? note.date : note.title}
+        </h1>
         {isWorkplan && (
           <>
-            <button
-              type="button"
-              onClick={setHours}
-              className="rounded border border-surface-border px-2 py-0.5 font-mono text-xs text-amber-400 hover:border-accent/60"
-            >
-              {note.hours || "00:00"}
-            </button>
+            <span className="text-ink-faint">–</span>
+            {editingHours ? (
+              <input
+                autoFocus
+                value={hoursDraft}
+                onChange={(e) => setHoursDraft(e.target.value)}
+                onBlur={() => void commitHours()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void commitHours();
+                  if (e.key === "Escape") setEditingHours(false);
+                }}
+                placeholder="hh:mm"
+                aria-label="Hours worked today"
+                className="w-16 rounded-md border border-accent bg-surface-raised px-2 py-0.5 font-mono text-sm outline-none"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => { setHoursDraft(note.hours || "00:00"); setEditingHours(true); }}
+                title="Hours worked today — click to edit"
+                className="rounded-md border border-border bg-surface-raised px-2 py-0.5 font-mono text-sm text-ink hover:border-accent"
+              >
+                {note.hours || "00:00"}
+              </button>
+            )}
             <select
               value={note.dayType || "work"}
-              onChange={(e) => void run(() => api.setDayType(note.path, e.target.value))}
+              onChange={(e) => void setDayType(e.target.value)}
               aria-label="Day type"
-              className="rounded border border-surface-border bg-surface px-1.5 py-0.5 text-xs text-ink-muted"
+              className="rounded-md border border-border bg-surface-raised px-1.5 py-0.5 text-xs text-ink-muted"
             >
-              {DAY_TYPES.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
+              {DAY_TYPES.map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
           </>
         )}
-        <span className="ml-auto font-mono text-xs text-ink-muted">
-          {note.items.filter((i) => !i.done).length} open · {note.items.filter((i) => i.done).length} done
-          {logged > 0 && ` · ${hhmm(logged)} on items`}
+        <span className="ml-auto flex items-center gap-3 text-xs text-ink-muted">
+          <span>{open} open · {done} done</span>
+          <span className={`transition ${saving === "saving" ? "text-ink-faint" : saving === "saved" ? "text-success" : "opacity-0"}`}>
+            {saving === "saving" ? "Saving…" : "Saved"}
+          </span>
         </span>
       </div>
-      <p className="mb-4 text-xs text-ink-muted/60">{note.path}</p>
 
-      {error && <ErrorBar message={error} />}
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+        <p className="mb-3 px-1.5 font-mono text-[11px] text-ink-faint">{note.path}</p>
 
-      <div className="space-y-0.5">
-        {note.items.map((item) => (
-          <ItemRow
-            key={item.id || item.text}
-            item={item}
-            focusOnMount={item.id === focusId}
-            onToggle={() => void run(() => api.setItemDone(note.path, item.id, !item.done))}
-            onText={(text) => void run(() => api.setItemText(note.path, item.id, text))}
-            onEnter={() => void addItem("", item.depth)}
-            onIndent={(delta) => {
-              const depth = Math.max(0, item.depth + delta);
-              if (depth === item.depth) return;
-              void run(async () => {
-                await api.removeItem(note.path, item.id);
-                await api.addItem(note.path, item.text, depth);
-              });
-            }}
-            onRemove={() => void run(() => api.removeItem(note.path, item.id))}
-            onLogTime={() => logTime(item.id)}
-            onBody={(body) => void run(() => api.setItemBody(note.path, item.id, body))}
-          />
-        ))}
+        <div className="space-y-px">
+          {state.items.map((item, index) => (
+            <ItemRow
+              key={item.key}
+              item={item}
+              index={index}
+              focused={state.focus === index}
+              caret={state.caret}
+              dispatch={dispatch}
+              dark={dark}
+            />
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => dispatch({ type: "insertAfter", index: state.items.length - 1 })}
+          className="mt-1 flex items-center gap-2 rounded-md px-1.5 py-1 text-sm text-ink-faint hover:bg-surface-raised hover:text-ink-muted"
+        >
+          <span className="flex h-4 w-4 items-center justify-center rounded border border-dashed border-border-strong text-[11px]">+</span>
+          Add item
+        </button>
+
+        {note.body && (
+          <div className="mt-8 whitespace-pre-wrap border-t border-border pt-4 text-sm text-ink-muted">{note.body}</div>
+        )}
       </div>
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void addItem(draft, 0);
-          setDraft("");
-        }}
-        className="mt-1 flex items-center gap-2 px-1"
-      >
-        <span className="h-[15px] w-[15px] shrink-0 rounded-sm border border-dashed border-white/20" />
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="Type an item and press Enter"
-          aria-label="New item"
-          className="min-w-0 flex-1 bg-transparent py-1 text-sm outline-none placeholder:text-ink-muted/40"
-        />
-      </form>
-
-      {note.body && (
-        <div className="mt-6 whitespace-pre-wrap border-t border-surface-border pt-4 text-sm text-ink-muted">
-          {note.body}
-        </div>
-      )}
-
-      <div className="mt-6 flex flex-wrap gap-3 border-t border-surface-border pt-3 text-[11px] text-ink-muted/50">
-        <Key label="Enter">new item</Key>
-        <Key label="Tab">indent</Key>
-        <Key label="Ctrl+Enter">toggle done</Key>
-        <Key label="Ctrl+T">log time</Key>
-        <Key label="Ctrl+Shift+N">item notes</Key>
-        <Key label="Ctrl+E">raw markdown</Key>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-border px-8 py-2 text-[11px] text-ink-faint">
+        <Key k="Enter">new item</Key>
+        <Key k="↑ ↓">move</Key>
+        <Key k="Tab">indent</Key>
+        <Key k="Ctrl+Enter">done</Key>
+        <Key k="Ctrl+Shift+N">notes</Key>
+        <Key k="Ctrl+E">markdown</Key>
+        <span className="ml-auto">paste a list to add many at once</span>
       </div>
     </main>
   );
 }
 
-function Header({ title, subtitle }: { title: string; subtitle: string }) {
+function Header({ note, subtitle }: { note: Note; subtitle: string }) {
   return (
-    <div className="mb-3">
-      <h1 className="text-xl font-bold">{title}</h1>
-      <p className="text-xs text-ink-muted/60">{subtitle}</p>
+    <div className="border-b border-border px-8 py-3">
+      <h1 className="text-[15px] font-semibold">{note.title}</h1>
+      <p className="text-xs text-ink-faint">{subtitle}</p>
     </div>
   );
 }
 
-function ErrorBar({ message }: { message: string }) {
-  return (
-    <p role="alert" className="mb-3 rounded border border-red-900 bg-red-950/40 p-2 text-xs text-red-300">
-      {message}
-    </p>
-  );
-}
-
-function Key({ label, children }: { label: string; children: React.ReactNode }) {
+function Key({ k, children }: { k: string; children: React.ReactNode }) {
   return (
     <span>
-      <kbd className="rounded border border-surface-border px-1 font-mono">{label}</kbd> {children}
+      <kbd className="rounded border border-border bg-surface-raised px-1 font-mono text-[10px]">{k}</kbd> {children}
     </span>
   );
 }

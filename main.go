@@ -9,9 +9,11 @@ import (
 	"context"
 	"embed"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"github.com/vishnu-kyatannawar/nota/internal/config"
 	"github.com/vishnu-kyatannawar/nota/services"
@@ -66,15 +68,9 @@ func run() error {
 		},
 	})
 
-	app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:            "Nota",
-		Width:            1200,
-		Height:           800,
-		MinWidth:         720,
-		MinHeight:        480,
-		BackgroundColour: application.NewRGB(20, 20, 22),
-		URL:              "/",
-	})
+	appService := services.NewAppService(core)
+	window := app.Window.NewWithOptions(windowOptions(settings.Window, settings.Theme))
+	rememberWindow(window, appService)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -83,6 +79,73 @@ func run() error {
 	rollAtMidnight(ctx, app, core)
 
 	return app.Run()
+}
+
+// windowOptions restores the window where the user left it. With nothing valid
+// saved — a first launch, or bounds that would put the window off-screen or below
+// the layout minimum — it opens maximised, so the app takes the whole screen by
+// default rather than a small box in the corner.
+func windowOptions(saved config.Window, theme string) application.WebviewWindowOptions {
+	opts := application.WebviewWindowOptions{
+		Title:            "Nota",
+		MinWidth:         config.MinWindowWidth,
+		MinHeight:        config.MinWindowHeight,
+		BackgroundColour: backgroundFor(theme),
+		URL:              "/",
+	}
+	if !saved.Valid() {
+		opts.Width, opts.Height = 1280, 800
+		opts.StartState = application.WindowStateMaximised
+		return opts
+	}
+	opts.X, opts.Y = saved.X, saved.Y
+	opts.Width, opts.Height = saved.Width, saved.Height
+	if saved.Maximised {
+		opts.StartState = application.WindowStateMaximised
+	}
+	return opts
+}
+
+// backgroundFor paints the window before the webview loads, so a light theme
+// does not flash dark for a frame at startup.
+func backgroundFor(theme string) application.RGBA {
+	if theme == config.ThemeLight {
+		return application.NewRGB(250, 250, 250)
+	}
+	return application.NewRGB(15, 16, 20)
+}
+
+// rememberWindow saves the bounds after a resize or move settles, and again on
+// close. Saving is debounced because a drag fires dozens of events a second and
+// each save is a settings file rewrite.
+func rememberWindow(window *application.WebviewWindow, app *services.AppService) {
+	var (
+		mu    sync.Mutex
+		timer *time.Timer
+	)
+	save := func() {
+		b := window.Bounds()
+		w := config.Window{X: b.X, Y: b.Y, Width: b.Width, Height: b.Height, Maximised: window.IsMaximised()}
+		if !w.Valid() {
+			return
+		}
+		if err := app.SaveWindow(w); err != nil {
+			log.Printf("saving window bounds: %v", err)
+		}
+	}
+	debounced := func(*application.WindowEvent) {
+		mu.Lock()
+		defer mu.Unlock()
+		if timer != nil {
+			timer.Stop()
+		}
+		timer = time.AfterFunc(500*time.Millisecond, save)
+	}
+	window.OnWindowEvent(events.Common.WindowDidResize, debounced)
+	window.OnWindowEvent(events.Common.WindowDidMove, debounced)
+	window.OnWindowEvent(events.Common.WindowMaximise, debounced)
+	window.OnWindowEvent(events.Common.WindowRestore, debounced)
+	window.OnWindowEvent(events.Common.WindowClosing, func(*application.WindowEvent) { save() })
 }
 
 // watchVault tells the frontend when a note changes underneath it, so editing a

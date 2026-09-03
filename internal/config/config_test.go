@@ -79,11 +79,10 @@ func TestSaveThenLoadRoundTrips(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "nested", "settings.json")
 
-	want := Settings{
-		VaultPath:        filepath.Join(dir, "MyNotes"),
-		WorkplanFolder:   "Daily",
-		CreateOnWeekends: false,
-	}
+	want := DefaultSettings()
+	want.VaultPath = filepath.Join(dir, "MyNotes")
+	want.WorkplanFolder = "Daily"
+	want.CreateOnWeekends = false
 	if err := Save(path, want); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
@@ -165,5 +164,116 @@ func TestAppDirIsInsideVault(t *testing.T) {
 	}
 	if got, want := s.TemplatesDir(), filepath.Join("/srv/notes", ".nota", "templates"); got != want {
 		t.Errorf("TemplatesDir() = %q, want %q", got, want)
+	}
+}
+
+func TestDefaultThemeIsSystem(t *testing.T) {
+	setHome(t, t.TempDir())
+	if got := DefaultSettings().Theme; got != ThemeSystem {
+		t.Errorf("Theme = %q, want %q", got, ThemeSystem)
+	}
+}
+
+func TestLoadFillsThemeWhenAbsentOrUnknown(t *testing.T) {
+	home := t.TempDir()
+	setHome(t, home)
+	path := filepath.Join(home, "settings.json")
+
+	tests := []struct {
+		name string
+		json string
+		want string
+	}{
+		{"absent falls back", `{"vaultPath":"/srv/notes"}`, ThemeSystem},
+		{"light kept", `{"vaultPath":"/srv/notes","theme":"light"}`, ThemeLight},
+		{"dark kept", `{"vaultPath":"/srv/notes","theme":"dark"}`, ThemeDark},
+		{"unknown value falls back", `{"vaultPath":"/srv/notes","theme":"neon"}`, ThemeSystem},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := os.WriteFile(path, []byte(tt.json), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			got, err := Load(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Theme != tt.want {
+				t.Errorf("Theme = %q, want %q", got.Theme, tt.want)
+			}
+		})
+	}
+}
+
+func TestWindowValid(t *testing.T) {
+	tests := []struct {
+		name string
+		w    Window
+		want bool
+	}{
+		{"zero value is not a saved window", Window{}, false},
+		{"sane bounds", Window{X: 100, Y: 80, Width: 1280, Height: 800}, true},
+		{"at the minimum", Window{Width: MinWindowWidth, Height: MinWindowHeight}, true},
+		{"below minimum width", Window{Width: MinWindowWidth - 1, Height: 800}, false},
+		{"below minimum height", Window{Width: 1280, Height: MinWindowHeight - 1}, false},
+		{"negative size", Window{Width: -10, Height: -10}, false},
+		{"maximised with sane bounds", Window{Width: 1280, Height: 800, Maximised: true}, true},
+		{"absurdly large is still valid, the OS clamps it", Window{Width: 20000, Height: 20000}, true},
+		// A window dragged off-screen must not be restored off-screen.
+		{"far negative position", Window{X: -50000, Y: 0, Width: 1280, Height: 800}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.w.Valid(); got != tt.want {
+				t.Errorf("Valid() = %v, want %v for %+v", got, tt.want, tt.w)
+			}
+		})
+	}
+}
+
+func TestWindowRoundTrips(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+
+	want := DefaultSettings()
+	want.VaultPath = filepath.Join(dir, "Notes")
+	want.Theme = ThemeDark
+	want.Window = Window{X: 40, Y: 60, Width: 1440, Height: 900, Maximised: true}
+
+	if err := Save(path, want); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Window != want.Window {
+		t.Errorf("Window = %+v, want %+v", got.Window, want.Window)
+	}
+	if got.Theme != ThemeDark {
+		t.Errorf("Theme = %q, want dark", got.Theme)
+	}
+}
+
+// A settings file from v1 has no window or theme keys at all; it must load
+// with the new defaults rather than fail or produce an invalid window.
+func TestLoadV1SettingsFile(t *testing.T) {
+	home := t.TempDir()
+	setHome(t, home)
+	path := filepath.Join(home, "settings.json")
+	v1 := `{"vaultPath":"/srv/notes","workplanFolder":"Workplans","createOnWeekends":true}`
+	if err := os.WriteFile(path, []byte(v1), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got.Theme != ThemeSystem {
+		t.Errorf("Theme = %q, want system", got.Theme)
+	}
+	if got.Window.Valid() {
+		t.Errorf("a v1 file must not yield a valid saved window, got %+v", got.Window)
 	}
 }

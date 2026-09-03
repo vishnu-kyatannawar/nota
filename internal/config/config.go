@@ -19,6 +19,47 @@ import (
 // DefaultWorkplanFolder is the reserved folder holding one dated note per day.
 const DefaultWorkplanFolder = "Workplans"
 
+// Theme values. "system" follows the operating system's light/dark preference.
+const (
+	ThemeSystem = "system"
+	ThemeLight  = "light"
+	ThemeDark   = "dark"
+)
+
+// The smallest window the layout works at; also the floor for a saved window.
+const (
+	MinWindowWidth  = 720
+	MinWindowHeight = 480
+)
+
+// Window is the last size and position the user left the window at, so it can
+// reopen the same way. The zero value means "never saved", which is how a first
+// launch is told apart from a remembered one.
+type Window struct {
+	X         int  `json:"x"`
+	Y         int  `json:"y"`
+	Width     int  `json:"width"`
+	Height    int  `json:"height"`
+	Maximised bool `json:"maximised"`
+}
+
+// Valid reports whether the saved window is worth restoring. A window that is
+// smaller than the layout minimum, or that was dragged far enough off-screen that
+// restoring it would hide it, is treated as never saved and the launch falls back
+// to a maximised window.
+func (w Window) Valid() bool {
+	if w.Width < MinWindowWidth || w.Height < MinWindowHeight {
+		return false
+	}
+	// Multi-monitor setups legitimately place windows at negative coordinates,
+	// so only reject positions no display could plausibly contain.
+	const farthest = 16384
+	if w.X < -farthest || w.X > farthest || w.Y < -farthest || w.Y > farthest {
+		return false
+	}
+	return true
+}
+
 // Settings is the user's configuration, persisted as .nota/settings.json.
 type Settings struct {
 	// VaultPath is the root directory of the markdown vault, always absolute.
@@ -29,6 +70,10 @@ type Settings struct {
 	// Sunday. Rollover copes with gaps either way; this only decides whether a
 	// weekend gets a note at all.
 	CreateOnWeekends bool `json:"createOnWeekends"`
+	// Theme is "system", "light" or "dark".
+	Theme string `json:"theme"`
+	// Window remembers where the window was left; see Window.Valid.
+	Window Window `json:"window"`
 }
 
 // DefaultSettings returns the configuration used on a first launch.
@@ -37,6 +82,7 @@ func DefaultSettings() Settings {
 		VaultPath:        ExpandHome(filepath.Join("~", "Notes")),
 		WorkplanFolder:   DefaultWorkplanFolder,
 		CreateOnWeekends: true,
+		Theme:            ThemeSystem,
 	}
 }
 
@@ -108,6 +154,12 @@ func Load(path string) (Settings, error) {
 	}
 
 	s.VaultPath = ExpandHome(s.VaultPath)
+	switch s.Theme {
+	case ThemeSystem, ThemeLight, ThemeDark:
+	default:
+		// A hand-edited or future value must not leave the UI without a theme.
+		s.Theme = ThemeSystem
+	}
 	return s, nil
 }
 

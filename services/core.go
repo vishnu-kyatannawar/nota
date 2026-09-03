@@ -12,7 +12,6 @@ package services
 
 import (
 	"crypto/rand"
-	"fmt"
 	"sync"
 	"time"
 
@@ -82,6 +81,20 @@ func (c *Core) Settings() config.Settings {
 	return c.settings
 }
 
+// updateSettings applies a change to the settings and persists it under the
+// core lock, so concurrent window events and UI toggles cannot interleave writes.
+func (c *Core) updateSettings(apply func(*config.Settings)) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	next := c.settings
+	apply(&next)
+	if err := config.Save(next.SettingsPath(), next); err != nil {
+		return err
+	}
+	c.settings = next
+	return nil
+}
+
 // newID mints a stable, sortable identifier for a note or an action item.
 func newID() string {
 	return ulid.MustNew(ulid.Timestamp(time.Now()), rand.Reader).String()
@@ -109,9 +122,4 @@ func (c *Core) mutate(path string, apply func(*mdnote.Note) error) error {
 		return err
 	}
 	return c.saveNote(path, note)
-}
-
-// notFound reports a missing item consistently across the item operations.
-func notFound(id string) error {
-	return fmt.Errorf("no item with id %q in this note", id)
 }

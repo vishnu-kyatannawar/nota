@@ -1,6 +1,10 @@
 package services
 
 import (
+	"fmt"
+	"strings"
+
+	"github.com/vishnu-kyatannawar/nota/internal/config"
 	"github.com/vishnu-kyatannawar/nota/internal/mdnote"
 	"github.com/vishnu-kyatannawar/nota/internal/vault"
 )
@@ -74,11 +78,14 @@ func (n *NotesService) SaveRaw(path, content string) error {
 	return n.core.index.Update(path, note)
 }
 
-// Create makes a new empty note and returns its path.
+// Create makes a new empty note and returns its path. If the path is taken the
+// name gets a numeric suffix — "Untitled 2" — rather than overwriting a note the
+// user cannot see.
 func (n *NotesService) Create(path string) (string, error) {
 	n.core.mu.Lock()
 	defer n.core.mu.Unlock()
 
+	path = n.unusedPath(path)
 	note := &mdnote.Note{ID: newID(), HadFrontmatter: true}
 	if err := n.core.saveNote(path, note); err != nil {
 		return "", err
@@ -86,11 +93,38 @@ func (n *NotesService) Create(path string) (string, error) {
 	return path, nil
 }
 
+func (n *NotesService) unusedPath(path string) string {
+	if _, err := n.core.vault.ReadRaw(path); err != nil {
+		return path
+	}
+	stem := strings.TrimSuffix(path, mdnote.Ext)
+	for i := 2; i < 1000; i++ {
+		candidate := fmt.Sprintf("%s %d%s", stem, i, mdnote.Ext)
+		if _, err := n.core.vault.ReadRaw(candidate); err != nil {
+			return candidate
+		}
+	}
+	return path
+}
+
+// reserved reports whether a path is the workplan folder itself, which must
+// keep its name for rollover to find each day's note.
+func (n *NotesService) reserved(path string) bool {
+	folder := n.core.Settings().WorkplanFolder
+	if folder == "" {
+		folder = config.DefaultWorkplanFolder
+	}
+	return strings.Trim(path, "/") == strings.Trim(folder, "/")
+}
+
 // CreateFolder makes a folder, including any missing parents.
 func (n *NotesService) CreateFolder(path string) error { return n.core.vault.CreateFolder(path) }
 
 // Rename moves a note or folder.
 func (n *NotesService) Rename(from, to string) error {
+	if n.reserved(from) {
+		return fmt.Errorf("%q is the workplan folder and cannot be renamed", from)
+	}
 	n.core.mu.Lock()
 	defer n.core.mu.Unlock()
 
@@ -111,6 +145,9 @@ func (n *NotesService) Rename(from, to string) error {
 
 // Delete removes a note, or a folder and everything under it.
 func (n *NotesService) Delete(path string) error {
+	if n.reserved(path) {
+		return fmt.Errorf("%q is the workplan folder and cannot be deleted", path)
+	}
 	n.core.mu.Lock()
 	defer n.core.mu.Unlock()
 

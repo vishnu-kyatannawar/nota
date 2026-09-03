@@ -40,3 +40,18 @@ export function GetSettings(): $CancellablePromise<config$0.Settings> {
 export function SaveSettings(s: config$0.Settings): $CancellablePromise<void> {
     return $Call.ByID(354768091, s);
 }
+
+/**
+ * SaveWindow remembers the window's bounds so the next launch reopens the same
+ * way. Called from the window event hooks in main, not from the frontend.
+ */
+export function SaveWindow(w: config$0.Window): $CancellablePromise<void> {
+    return $Call.ByID(2092487314, w);
+}
+
+/**
+ * SetTheme persists the theme choice: system, light or dark.
+ */
+export function SetTheme(theme: string): $CancellablePromise<void> {
+    return $Call.ByID(3261068070, theme);
+}
