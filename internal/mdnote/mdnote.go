@@ -24,6 +24,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Ext is the file extension a note is stored with.
+const Ext = ".md"
+
 // bodyIndent is how far an item's body is indented past the item's own bullet,
 // which lines it up under the text after "- [ ] ".
 const bodyIndent = 6
