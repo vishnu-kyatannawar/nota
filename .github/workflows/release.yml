@@ -63,12 +63,12 @@ jobs:
         run: |
           version="${GITHUB_REF_NAME#v}"
           name="nota_${version}_${{ matrix.goos }}_amd64"
-          cp README.md dist/
+          cp README.md LICENSE dist/
           cd dist
           if [ "${{ matrix.archive }}" = "zip" ]; then
-            7z a "../${name}.zip" "nota${{ matrix.ext }}" README.md
+            7z a "../${name}.zip" "nota${{ matrix.ext }}" README.md LICENSE
           else
-            tar -czf "../${name}.tar.gz" "nota${{ matrix.ext }}" README.md
+            tar -czf "../${name}.tar.gz" "nota${{ matrix.ext }}" README.md LICENSE
           fi
 
       - uses: actions/upload-artifact@v4

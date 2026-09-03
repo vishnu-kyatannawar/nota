@@ -160,3 +160,7 @@ Recurring items live in `.nota/templates/recurring.md`, one per line:
 
 The filename stays the date alone. The hours are frontmatter, so logging time
 never renames the file or churns git history.
+
+## Licence
+
+[MIT](LICENSE) — Copyright (c) 2026 Vishnu Kyatannawar.
