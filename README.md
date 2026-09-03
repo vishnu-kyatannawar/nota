@@ -8,6 +8,9 @@ note in vim, grep the whole tree, put it in git; none of that needs Nota running
 
 Linux and Windows, single binary, Go + a webview frontend.
 
+**[nota website](https://vishnu-kyatannawar.github.io/nota/)** ·
+[latest release](https://github.com/vishnu-kyatannawar/nota/releases/latest)
+
 ## Install
 
 ```sh
