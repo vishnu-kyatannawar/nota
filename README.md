@@ -41,6 +41,12 @@ release's published SHA-256 before installing it.
 - **Labels** — type `#label` inline on any item, or list them in a note's frontmatter.
 - **Code and JSON** — fenced blocks with real syntax highlighting, in an item's
   notes or anywhere in the note.
+- **Notes with formatting** — under the items on every workplan, and on any note: headings,
+  bold, italics, bullets, numbered lists, quotes and code, saved as markdown.
+- **Notes that are items, notes, or both** — an Items / Notes / Both toggle on every note.
+  Keep a backlog as an item list and move items into today's workplan with one action.
+- **Labels you can take off** — `#label` chips with an ×, and `#` autocompletes existing ones.
+- **Trash** — deleted notes and folders sit in Trash for 30 days; restore them from the sidebar.
 - **Recurring items** — daily, weekday or weekly, from a hand-editable file.
 - **Export and restore** — one zip of the whole vault, and back again.
 
@@ -53,7 +59,9 @@ release's published SHA-256 before installing it.
 | `Backspace` on an empty item | Delete it and move up |
 | `Tab` / `Shift+Tab` | Indent / outdent |
 | `Ctrl+Enter` | Toggle done |
-| `Ctrl+Shift+N` | Open the item's notes |
+| `#` | Add a label (autocompletes) |
+| `Ctrl+Shift+N` | Open or remove the item's notes |
+| `Ctrl+Shift+M` | Move the item to today's workplan |
 | `Ctrl+E` | Swap the note to raw markdown and back |
 | Paste several lines | One item per line; `- [x]` lines arrive ticked |
 
@@ -131,8 +139,10 @@ so copying the directory carries the configuration with it.
   Workplans/          reserved: one dated note per day
     2026-09-02.md
   Projects/           ordinary nested folders
-  .nota/              settings, templates, index.db
+  .nota/              settings, templates, index.db, trash/
 ```
+
+A backup made with Export includes the trash, so a restore brings it back too.
 
 A workplan looks like this. Labels stay visible where you would write them; only
 ids and timestamps hide in a comment markdown does not render.
