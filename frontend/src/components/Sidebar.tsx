@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Label, Node, TrashEntry, Workplan } from "../lib/api";
 import type { Theme } from "../lib/theme";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { Logo } from "./Logo";
+import { Icon } from "./Icon";
 
 export type TreeActions = {
   onOpen: (path: string) => void;
@@ -85,8 +86,8 @@ export function Sidebar(props: Props) {
     setMenu({ x: e.clientX, y: e.clientY, items });
   };
 
-  const themeLabel = { system: "System theme", light: "Light theme", dark: "Dark theme" }[theme];
-  const themeGlyph = { system: "◐", light: "☀", dark: "☾" }[theme];
+  const themeLabel = { system: "Theme: follows the system", light: "Theme: light", dark: "Theme: dark" }[theme];
+  const themeIcon = ({ system: "monitor", light: "sun", dark: "moon" } as const)[theme];
 
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-surface-raised">
@@ -194,14 +195,15 @@ export function Sidebar(props: Props) {
       </div>
 
       <div className="flex items-center gap-1 border-t border-border px-2 py-2">
-        <IconButton label={themeLabel} onClick={props.onCycleTheme}>{themeGlyph}</IconButton>
-        <IconButton label="Settings" onClick={props.onOpenSettings}>⚙</IconButton>
+        <IconButton label={themeLabel} onClick={props.onCycleTheme}><Icon name={themeIcon} /></IconButton>
+        <IconButton label="Settings" onClick={props.onOpenSettings}><Icon name="settings" /></IconButton>
         <button
           type="button"
           onClick={props.onOpenAbout}
-          className="ml-auto rounded-md px-2 py-1 font-mono text-[11px] text-ink-faint hover:bg-surface-sunken hover:text-ink-muted"
+          title="About Nota"
+          className="ml-auto flex items-center gap-1.5 rounded-md px-2 py-1 font-mono text-[12px] text-ink-muted hover:bg-surface-sunken hover:text-ink"
         >
-          v{version}
+          <Icon name="info" size={14} />v{version}
         </button>
       </div>
 
@@ -227,7 +229,7 @@ function parentOf(path: string): string {
 function Section({ title, trailing, children }: { title: React.ReactNode; trailing?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="mb-3">
-      <div className="mb-1 flex items-center px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-faint">
+      <div className="mb-1 flex items-center px-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-muted">
         {title}
         <span className="ml-auto">{trailing}</span>
       </div>
@@ -243,7 +245,7 @@ function IconButton({ label, onClick, children }: { label: string; onClick: () =
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="flex h-6 w-6 items-center justify-center rounded-md text-[13px] text-ink-muted hover:bg-surface-sunken hover:text-ink"
+      className="flex h-7 w-7 items-center justify-center rounded-md text-[14px] text-ink-muted hover:bg-surface-sunken hover:text-ink"
     >
       {children}
     </button>
@@ -251,7 +253,7 @@ function IconButton({ label, onClick, children }: { label: string; onClick: () =
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="px-2 py-1 text-[12px] text-ink-faint">{children}</p>;
+  return <p className="px-2 py-1 text-[12px] text-ink-muted">{children}</p>;
 }
 
 type TreeNodeProps = {
@@ -282,7 +284,7 @@ function TreeNode(p: TreeNodeProps) {
       type="button"
       onClick={() => (node.isFolder ? p.toggle(node.path) : p.onOpen(node.path))}
       onContextMenu={(e) => p.onMenu(e, node)}
-      onDoubleClick={() => node.isFolder && p.setRenaming(node.path)}
+      onDoubleClick={() => p.setRenaming(node.path)}
       style={{ paddingLeft: pad }}
       className={`group flex w-full items-center gap-1.5 rounded-md py-1 pr-1 text-left text-[13px] ${
         active ? "bg-accent-soft text-accent" : "text-ink-muted hover:bg-surface-sunken hover:text-ink"
@@ -316,16 +318,27 @@ function TreeNode(p: TreeNodeProps) {
 
 function RenameInput({ node, pad, onDone }: { node: Node; pad: number; onDone: (name: string | null) => void }) {
   const [value, setValue] = useState(node.name);
+  // Committing unmounts this input, and unmounting fires blur — so without a
+  // guard every rename ran twice (the second failing on a path that no longer
+  // existed) and Escape committed instead of cancelling.
+  const finished = useRef(false);
+  const finish = (name: string | null) => {
+    if (finished.current) return;
+    finished.current = true;
+    onDone(name);
+  };
+  const changed = () => (value.trim() && value.trim() !== node.name ? value.trim() : null);
+
   return (
     <input
       autoFocus
       value={value}
       onChange={(e) => setValue(e.target.value)}
       onFocus={(e) => e.target.select()}
-      onBlur={() => onDone(value.trim() && value.trim() !== node.name ? value.trim() : null)}
+      onBlur={() => finish(changed())}
       onKeyDown={(e) => {
-        if (e.key === "Enter") onDone(value.trim() && value.trim() !== node.name ? value.trim() : null);
-        if (e.key === "Escape") onDone(null);
+        if (e.key === "Enter") { e.preventDefault(); finish(changed()); }
+        if (e.key === "Escape") { e.preventDefault(); finish(null); }
       }}
       aria-label={`Rename ${node.name}`}
       style={{ marginLeft: pad }}

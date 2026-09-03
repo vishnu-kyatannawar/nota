@@ -3,6 +3,7 @@ import { Events } from "@wailsio/runtime";
 import type { Hit, Info, Label, Node, TrashEntry, Workplan } from "./lib/api";
 import { api } from "./lib/api";
 import { applyTheme, isTheme, resolvedTheme, THEMES, type Theme } from "./lib/theme";
+import { applyFonts, DEFAULT_FONTS, normaliseFonts, type Fonts } from "./lib/fonts";
 import { Sidebar } from "./components/Sidebar";
 import { NoteView } from "./components/NoteView";
 import { AboutDialog } from "./components/AboutDialog";
@@ -13,6 +14,7 @@ export default function App() {
   const [info, setInfo] = useState<Info | null>(null);
   const [theme, setTheme] = useState<Theme>("system");
   const [dark, setDark] = useState(false);
+  const [fonts, setFonts] = useState<Fonts>(DEFAULT_FONTS);
   const [tree, setTree] = useState<Node | null>(null);
   const [workplans, setWorkplans] = useState<Workplan[]>([]);
   const [labels, setLabels] = useState<Label[]>([]);
@@ -72,6 +74,9 @@ export default function App() {
         setTheme(t);
         applyTheme(t);
         setDark(resolvedTheme(t) === "dark");
+        const f = normaliseFonts(i.fonts);
+        setFonts(f);
+        applyFonts(f);
         const today = await api.ensureToday();
         await refreshShell();
         if (today) {
@@ -150,10 +155,18 @@ export default function App() {
     }
   }, [fail, refreshShell, tree]);
 
+  const chooseFonts = useCallback((f: Fonts) => {
+    setFonts(f);
+    applyFonts(f);
+    api.setFonts(f).catch((e) => fail(String(e)));
+  }, [fail]);
+
   const rename = useCallback(async (from: string, newName: string) => {
     const parent = from.includes("/") ? from.slice(0, from.lastIndexOf("/") + 1) : "";
     const isNote = from.endsWith(".md");
-    const to = `${parent}${newName.replace(/[/\\]/g, "-")}${isNote && !newName.endsWith(".md") ? ".md" : ""}`;
+    const clean = newName.replace(/[/\\]/g, "-").replace(/\.md$/i, "");
+    const to = `${parent}${clean}${isNote ? ".md" : ""}`;
+    if (!clean || to === from) return;
     try {
       await api.rename(from, to);
       await refreshShell();
@@ -271,6 +284,8 @@ export default function App() {
         onClose={() => setSettingsOpen(false)}
         theme={theme}
         onTheme={chooseTheme}
+        fonts={fonts}
+        onFonts={chooseFonts}
         onError={fail}
         onVaultChanged={() => { void refreshShell(); setReloadToken((n) => n + 1); }}
       />
