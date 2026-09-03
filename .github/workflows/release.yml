@@ -1,0 +1,105 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+# cgo rules out cross-compiling, so each platform builds on its own runner and
+# the artefacts are combined into a single release.
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04,  name: linux,   goos: linux,   ext: '',     archive: tar.gz }
+          - { os: windows-2022,  name: windows, goos: windows, ext: '.exe', archive: zip }
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Linux GUI dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      # main.go embeds frontend/dist, so the frontend is built first.
+      - name: Build frontend
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile && pnpm run build
+
+      - name: Build binary
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          mkdir -p dist
+          go build -trimpath -tags production \
+            -ldflags "-s -w -X main.version=${version}" \
+            -o "dist/nota${{ matrix.ext }}" .
+
+      - name: Package
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          name="nota_${version}_${{ matrix.goos }}_amd64"
+          cp README.md dist/
+          cd dist
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            7z a "../${name}.zip" "nota${{ matrix.ext }}" README.md
+          else
+            tar -czf "../${name}.tar.gz" "nota${{ matrix.ext }}" README.md
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.name }}
+          path: nota_*
+          if-no-files-found: error
+
+  release:
+    name: Publish
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: package-*
+          merge-multiple: true
+          path: dist
+
+      # The install scripts refuse to install anything whose hash is not in here.
+      - name: Generate checksums
+        working-directory: dist
+        run: sha256sum nota_* > checksums.txt
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/nota_*
+            dist/checksums.txt
+          generate_release_notes: true
