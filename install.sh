@@ -78,6 +78,12 @@ tar -xzf "${tmp}/${asset}" -C "$tmp"
 mkdir -p "$BIN_DIR"
 install -m 0755 "${tmp}/nota" "${BIN_DIR}/nota"
 
+ICON_DIR="${HOME}/.local/share/icons/hicolor/256x256/apps"
+if [ -f "${tmp}/nota.png" ]; then
+  mkdir -p "$ICON_DIR"
+  install -m 0644 "${tmp}/nota.png" "${ICON_DIR}/nota.png"
+fi
+
 mkdir -p "$APP_DIR"
 cat > "${APP_DIR}/nota.desktop" <<DESKTOP
 [Desktop Entry]
@@ -85,9 +91,12 @@ Type=Application
 Name=Nota
 Comment=Daily workplans and notes, stored as plain markdown
 Exec=${BIN_DIR}/nota
+Icon=nota
 Terminal=false
 Categories=Office;Utility;
+StartupWMClass=nota
 DESKTOP
+command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$APP_DIR" 2>/dev/null || true
 
 echo "Installed Nota ${tag} to ${BIN_DIR}/nota"
 case ":${PATH}:" in

@@ -68,7 +68,8 @@ jobs:
           if [ "${{ matrix.archive }}" = "zip" ]; then
             7z a "../${name}.zip" "nota${{ matrix.ext }}" README.md LICENSE
           else
-            tar -czf "../${name}.tar.gz" "nota${{ matrix.ext }}" README.md LICENSE
+            cp ../build/linux/nota.png .
+            tar -czf "../${name}.tar.gz" "nota${{ matrix.ext }}" nota.png README.md LICENSE
           fi
 
       - uses: actions/upload-artifact@v4
