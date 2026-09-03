@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# cgo rules out cross-compiling, so each target builds on its own native runner.
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, name: linux, binary: bin/nota }
+          - { os: windows-2022, name: windows, binary: bin/nota.exe }
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Linux GUI dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint frontend
+        working-directory: frontend
+        run: pnpm run lint
+
+      - name: Typecheck frontend
+        working-directory: frontend
+        run: pnpm run typecheck
+
+      # The Go binary embeds frontend/dist, so the frontend is built first.
+      - name: Build frontend
+        working-directory: frontend
+        run: pnpm run build
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Lint Go
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.13.2
+
+      - name: Test
+        run: go test -race ./...
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.16
+
+      - name: Check bindings are up to date
+        run: |
+          wails3 generate bindings -d frontend/bindings
+          git diff --exit-code -- frontend/bindings
+
+      - name: Build
+        run: wails3 build
+
+      - name: Verify binary exists
+        shell: bash
+        run: test -f "${{ matrix.binary }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nota-${{ matrix.name }}
+          path: ${{ matrix.binary }}
+          if-no-files-found: error

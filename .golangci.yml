@@ -1,0 +1,32 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck      # unchecked errors are how file corruption gets in
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - revive
+    - bodyclose
+    - errorlint     # correct error wrapping matters once errors cross the bindings
+    - nilerr
+  exclusions:
+    paths:
+      # Scaffolding emitted by `wails3 init`; regenerated, not maintained here.
+      - build/
+    rules:
+      # Table-driven tests read better without the ceremony these ask for.
+      - path: _test\.go
+        linters:
+          - errcheck
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

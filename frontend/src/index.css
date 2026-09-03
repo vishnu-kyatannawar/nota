@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+/* The app is a writing surface first, so the palette stays out of the way and
+   the type is sized for long reading rather than for dashboard density. */
+@theme {
+  --color-surface: #141416;
+  --color-surface-raised: #1c1c1f;
+  --color-surface-border: #2a2a2e;
+  --color-ink: #e8e8ea;
+  --color-ink-muted: #9a9aa2;
+  --color-accent: #d4a24c;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
