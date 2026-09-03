@@ -343,3 +343,181 @@ func TestWatchStopsWhenTheContextIsCancelled(t *testing.T) {
 		t.Error("event channel did not close after cancellation")
 	}
 }
+
+func TestDeleteMovesToTrashAndRestoreBringsItBack(t *testing.T) {
+	v := newVault(t)
+	if err := v.WriteRaw("Projects/api.md", "# API\n\nkeep me\n"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := v.Delete("Projects/api.md"); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	if _, err := v.ReadRaw("Projects/api.md"); err == nil {
+		t.Fatal("note still readable after delete")
+	}
+	tree, _ := v.Tree()
+	for _, c := range tree.Children {
+		if c.Name == "Projects" {
+			for _, n := range c.Children {
+				if n.Name == "api" {
+					t.Fatal("deleted note still in the tree")
+				}
+			}
+		}
+	}
+
+	entries, err := v.ListTrash()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("trash has %d entries, want 1", len(entries))
+	}
+	e := entries[0]
+	if e.Path != "Projects/api.md" || e.IsFolder || e.ID == "" || e.DeletedAt.IsZero() {
+		t.Errorf("trash entry = %+v", e)
+	}
+
+	restored, err := v.Restore(e.ID)
+	if err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+	if restored != "Projects/api.md" {
+		t.Errorf("restored to %q", restored)
+	}
+	got, err := v.ReadRaw("Projects/api.md")
+	if err != nil || got != "# API\n\nkeep me\n" {
+		t.Errorf("restored content = %q, err %v", got, err)
+	}
+	if entries, _ := v.ListTrash(); len(entries) != 0 {
+		t.Errorf("trash still has %d entries after restore", len(entries))
+	}
+}
+
+func TestTrashedFolderRestoresWithItsChildren(t *testing.T) {
+	v := newVault(t)
+	for _, p := range []string{"Work/a.md", "Work/sub/b.md"} {
+		if err := v.WriteRaw(p, p+"\n"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := v.Delete("Work"); err != nil {
+		t.Fatal(err)
+	}
+	entries, _ := v.ListTrash()
+	if len(entries) != 1 || !entries[0].IsFolder || entries[0].Path != "Work" {
+		t.Fatalf("entries = %+v", entries)
+	}
+	if _, err := v.Restore(entries[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{"Work/a.md", "Work/sub/b.md"} {
+		if got, err := v.ReadRaw(p); err != nil || got != p+"\n" {
+			t.Errorf("%s after restore = %q, %v", p, got, err)
+		}
+	}
+}
+
+// Restoring must never overwrite something the user made in the meantime.
+func TestRestoreBesideAnOccupiedPath(t *testing.T) {
+	v := newVault(t)
+	if err := v.WriteRaw("note.md", "old\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err := v.Delete("note.md"); err != nil {
+		t.Fatal(err)
+	}
+	if err := v.WriteRaw("note.md", "new\n"); err != nil {
+		t.Fatal(err)
+	}
+	entries, _ := v.ListTrash()
+	restored, err := v.Restore(entries[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restored != "note (restored).md" {
+		t.Errorf("restored path = %q", restored)
+	}
+	if got, _ := v.ReadRaw("note.md"); got != "new\n" {
+		t.Error("restore overwrote the newer note")
+	}
+	if got, _ := v.ReadRaw("note (restored).md"); got != "old\n" {
+		t.Errorf("restored copy = %q", got)
+	}
+}
+
+func TestTrashListsNewestFirstAndPurgesByAge(t *testing.T) {
+	v := newVault(t)
+	for _, p := range []string{"one.md", "two.md", "three.md"} {
+		if err := v.WriteRaw(p, p); err != nil {
+			t.Fatal(err)
+		}
+		if err := v.Delete(p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	entries, _ := v.ListTrash()
+	if len(entries) != 3 || entries[0].Path != "three.md" || entries[2].Path != "one.md" {
+		t.Fatalf("not newest first: %+v", entries)
+	}
+
+	// Backdate the oldest as if it had sat there for 40 days.
+	if err := v.backdateTrash(entries[2].ID, 40*24*time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	if err := v.PurgeTrash(30 * 24 * time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	entries, _ = v.ListTrash()
+	if len(entries) != 2 {
+		t.Errorf("purge left %d entries, want 2", len(entries))
+	}
+	for _, e := range entries {
+		if e.Path == "one.md" {
+			t.Error("the 40-day-old entry survived the 30-day purge")
+		}
+	}
+}
+
+func TestDeleteForeverAndEmptyTrash(t *testing.T) {
+	v := newVault(t)
+	for _, p := range []string{"a.md", "b.md"} {
+		if err := v.WriteRaw(p, p); err != nil {
+			t.Fatal(err)
+		}
+		if err := v.Delete(p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	entries, _ := v.ListTrash()
+	if err := v.DeleteForever(entries[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	if entries, _ = v.ListTrash(); len(entries) != 1 {
+		t.Fatalf("DeleteForever left %d", len(entries))
+	}
+	if err := v.EmptyTrash(); err != nil {
+		t.Fatal(err)
+	}
+	if entries, _ = v.ListTrash(); len(entries) != 0 {
+		t.Errorf("EmptyTrash left %d", len(entries))
+	}
+	// Ids are directory names; one that tries to escape must be refused.
+	if err := v.DeleteForever("../../etc"); err == nil {
+		t.Error("DeleteForever accepted a path-like id")
+	}
+}
+
+func TestTheAppDirectoryCannotBeDeleted(t *testing.T) {
+	v := newVault(t)
+	if err := os.MkdirAll(filepath.Join(v.Root(), AppDirName, "templates"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := v.Delete(AppDirName); err == nil {
+		t.Error("deleting .nota was allowed")
+	}
+	if err := v.Delete(AppDirName + "/templates"); err == nil {
+		t.Error("deleting inside .nota was allowed")
+	}
+}

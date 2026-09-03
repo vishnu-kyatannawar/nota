@@ -9,6 +9,8 @@ package vault
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -17,6 +19,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
 
@@ -208,16 +211,233 @@ func (v *Vault) Rename(from, to string) error {
 	return nil
 }
 
-// Delete removes a note, or a folder and everything under it.
+// TrashDirName is the folder under the app directory that holds deleted notes.
+const TrashDirName = "trash"
+
+// ErrReserved is returned when the app's own directory is targeted.
+var ErrReserved = errors.New("the application directory cannot be deleted")
+
+// TrashEntry is one deleted note or folder, recoverable until purged.
+type TrashEntry struct {
+	// ID is the entry's directory name under .nota/trash.
+	ID string `json:"id"`
+	// Path is where the note or folder lived, vault-relative.
+	Path      string    `json:"path"`
+	Name      string    `json:"name"`
+	IsFolder  bool      `json:"isFolder"`
+	DeletedAt time.Time `json:"deletedAt"`
+}
+
+// Delete moves a note, or a folder and everything under it, into the trash,
+// where it can be restored until it is purged. Nothing is removed outright, so
+// a mis-click in the sidebar costs nothing.
 func (v *Vault) Delete(rel string) error {
 	abs, err := v.resolve(rel)
 	if err != nil {
 		return err
 	}
-	if err := os.RemoveAll(abs); err != nil {
+	clean := path.Clean(strings.ReplaceAll(rel, string(filepath.Separator), "/"))
+	if clean == AppDirName || strings.HasPrefix(clean, AppDirName+"/") {
+		return fmt.Errorf("%w: %s", ErrReserved, rel)
+	}
+	info, err := os.Stat(abs)
+	if err != nil {
 		return fmt.Errorf("deleting %s: %w", rel, err)
 	}
+
+	id, err := newTrashID()
+	if err != nil {
+		return err
+	}
+	entryDir := filepath.Join(v.trashDir(), id)
+	dest := filepath.Join(entryDir, filepath.FromSlash(clean))
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return fmt.Errorf("preparing trash: %w", err)
+	}
+	if err := os.Rename(abs, dest); err != nil {
+		return fmt.Errorf("moving %s to trash: %w", rel, err)
+	}
+
+	meta := TrashEntry{ID: id, Path: clean, Name: path.Base(clean), IsFolder: info.IsDir(), DeletedAt: time.Now()}
+	if err := writeMeta(entryDir, meta); err != nil {
+		return err
+	}
 	return nil
+}
+
+func (v *Vault) trashDir() string {
+	return filepath.Join(v.root, AppDirName, TrashDirName)
+}
+
+// newTrashID is a sortable timestamp plus a little randomness, so two deletes in
+// the same millisecond cannot collide.
+func newTrashID() (string, error) {
+	var b [3]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", fmt.Errorf("generating trash id: %w", err)
+	}
+	return fmt.Sprintf("%d-%x", time.Now().UnixMilli(), b), nil
+}
+
+func writeMeta(entryDir string, meta TrashEntry) error {
+	data, err := json.MarshalIndent(meta, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encoding trash metadata: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(entryDir, "meta.json"), data, 0o644); err != nil {
+		return fmt.Errorf("writing trash metadata: %w", err)
+	}
+	return nil
+}
+
+// entryDir validates an id and returns its directory. Ids are bare directory
+// names; anything with a separator is refused so an id can never address the
+// wider filesystem.
+func (v *Vault) entryDir(id string) (string, error) {
+	if id == "" || strings.ContainsAny(id, "/\\") || id == "." || id == ".." {
+		return "", fmt.Errorf("%w: invalid trash id %q", ErrOutsideVault, id)
+	}
+	return filepath.Join(v.trashDir(), id), nil
+}
+
+func (v *Vault) readMeta(id string) (TrashEntry, error) {
+	dir, err := v.entryDir(id)
+	if err != nil {
+		return TrashEntry{}, err
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "meta.json"))
+	if err != nil {
+		return TrashEntry{}, fmt.Errorf("reading trash entry %s: %w", id, err)
+	}
+	var meta TrashEntry
+	if err := json.Unmarshal(data, &meta); err != nil {
+		return TrashEntry{}, fmt.Errorf("parsing trash entry %s: %w", id, err)
+	}
+	meta.ID = id
+	return meta, nil
+}
+
+// ListTrash returns every recoverable entry, newest first.
+func (v *Vault) ListTrash() ([]TrashEntry, error) {
+	dirs, err := os.ReadDir(v.trashDir())
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reading trash: %w", err)
+	}
+	var out []TrashEntry
+	for _, d := range dirs {
+		if !d.IsDir() {
+			continue
+		}
+		meta, err := v.readMeta(d.Name())
+		if err != nil {
+			continue // a half-written entry is skipped rather than blocking the list
+		}
+		out = append(out, meta)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].DeletedAt.After(out[j].DeletedAt) })
+	return out, nil
+}
+
+// Restore puts a trashed note or folder back where it was and returns the
+// path. If something now occupies that path, the entry is restored beside it
+// as "name (restored)" rather than overwriting what the user made since.
+func (v *Vault) Restore(id string) (string, error) {
+	meta, err := v.readMeta(id)
+	if err != nil {
+		return "", err
+	}
+	dir, _ := v.entryDir(id)
+	src := filepath.Join(dir, filepath.FromSlash(meta.Path))
+
+	target := meta.Path
+	for n := 0; ; n++ {
+		abs, err := v.resolve(target)
+		if err != nil {
+			return "", err
+		}
+		if _, err := os.Stat(abs); errors.Is(err, fs.ErrNotExist) {
+			if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+				return "", fmt.Errorf("preparing %s: %w", target, err)
+			}
+			if err := os.Rename(src, abs); err != nil {
+				return "", fmt.Errorf("restoring %s: %w", meta.Path, err)
+			}
+			_ = os.RemoveAll(dir)
+			return target, nil
+		}
+		target = restoredName(meta.Path, meta.IsFolder, n+1)
+	}
+}
+
+func restoredName(p string, isFolder bool, n int) string {
+	suffix := " (restored)"
+	if n > 1 {
+		suffix = fmt.Sprintf(" (restored %d)", n)
+	}
+	if isFolder || !strings.HasSuffix(p, NoteExt) {
+		return p + suffix
+	}
+	return strings.TrimSuffix(p, NoteExt) + suffix + NoteExt
+}
+
+// DeleteForever removes one trash entry permanently.
+func (v *Vault) DeleteForever(id string) error {
+	dir, err := v.entryDir(id)
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(filepath.Join(dir, "meta.json")); err != nil {
+		return fmt.Errorf("trash entry %s: %w", id, err)
+	}
+	if err := os.RemoveAll(dir); err != nil {
+		return fmt.Errorf("removing trash entry %s: %w", id, err)
+	}
+	return nil
+}
+
+// EmptyTrash removes every entry permanently.
+func (v *Vault) EmptyTrash() error {
+	entries, err := v.ListTrash()
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if err := v.DeleteForever(e.ID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// PurgeTrash removes entries deleted longer ago than olderThan.
+func (v *Vault) PurgeTrash(olderThan time.Duration) error {
+	entries, err := v.ListTrash()
+	if err != nil {
+		return err
+	}
+	cutoff := time.Now().Add(-olderThan)
+	for _, e := range entries {
+		if e.DeletedAt.Before(cutoff) {
+			if err := v.DeleteForever(e.ID); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// backdateTrash rewrites an entry's deletion time; it exists for the purge test.
+func (v *Vault) backdateTrash(id string, by time.Duration) error {
+	meta, err := v.readMeta(id)
+	if err != nil {
+		return err
+	}
+	dir, _ := v.entryDir(id)
+	meta.DeletedAt = meta.DeletedAt.Add(-by)
+	return writeMeta(dir, meta)
 }
 
 // Tree walks the vault and returns its folders and notes. Folders sort before
