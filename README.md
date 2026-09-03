@@ -35,7 +35,12 @@ release's published SHA-256 before installing it.
 - **Hours worked per day**, shown as `2026-09-02 - 09:00`, sitting at `00:00` on a
   weekend, leave day or holiday. One figure per day, set by you.
 - **Keyboard-first items** — type and press Enter, the checkbox appears for you. Arrow
-  keys move between items; paste a list and each line becomes an item.
+  keys move between items; paste a list and each line becomes an item. Hover a row for
+  one-click done, delete, and move-to-today.
+- **Headings between items** — type `## Must` on an empty row to group what follows.
+  Headings roll over with their open items and vanish when the group is finished.
+- **Your fonts** — Inter, Manrope, IBM Plex Sans for the interface; Lora and Source Serif 4
+  for notes; JetBrains Mono for code. All bundled, nothing fetched. Three sizes.
 - **Light, dark or system theme**, and a window that opens maximised the first time and
   remembers its size and position after that.
 - **Labels** — type `#label` inline on any item, or list them in a note's frontmatter.
@@ -59,6 +64,8 @@ release's published SHA-256 before installing it.
 | `Backspace` on an empty item | Delete it and move up |
 | `Tab` / `Shift+Tab` | Indent / outdent |
 | `Ctrl+Enter` | Toggle done |
+| `Ctrl+Backspace` / `Ctrl+Delete` | Delete the item |
+| `## ` at the start of an empty row | Turn it into a heading |
 | `#` | Add a label (autocompletes) |
 | `Ctrl+Shift+N` | Open or remove the item's notes |
 | `Ctrl+Shift+M` | Move the item to today's workplan |
