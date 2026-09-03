@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nota — daily workplans in plain markdown</title>
+<meta name="description" content="A desktop note app for Linux and Windows, built around one dated workplan per day. Unfinished items roll forward. Notes are plain markdown files you own.">
+
+<meta property="og:title" content="Nota — daily workplans in plain markdown">
+<meta property="og:description" content="One dated workplan per day. Unfinished items roll forward, finished ones stay behind. Your notes are plain markdown files in a directory you own.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://vishnu-kyatannawar.github.io/nota/">
+<meta name="theme-color" content="#141416">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23141416'/%3E%3Cpath d='M8 11h16M8 16h16M8 21h10' stroke='%23d4a24c' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
+
+<style>
+  /* The app's own palette, so the page and the product look like one thing. */
+  :root {
+    --surface: #141416;
+    --raised: #1c1c1f;
+    --border: #2a2a2e;
+    --ink: #e8e8ea;
+    --muted: #9a9aa2;
+    --accent: #d4a24c;
+    --amber: #e0a94a;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--surface);
+    color: var(--ink);
+    font: 16px/1.65 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); }
+  h1, h2, h3 { line-height: 1.2; margin: 0; }
+  p { margin: 0; }
+  code, pre, .mono { font-family: var(--mono); }
+  .wrap { max-width: 940px; margin: 0 auto; padding: 0 24px; }
+  section { padding: 72px 0; border-top: 1px solid var(--border); }
+  section:first-of-type { border-top: 0; }
+  .eyebrow {
+    font-size: 11px; font-weight: 700; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--muted);
+  }
+
+  /* hero */
+  header { padding: 96px 0 72px; }
+  .logo { display: flex; align-items: center; gap: 12px; margin-bottom: 40px; }
+  .logo svg { width: 34px; height: 34px; }
+  .logo span { font-size: 19px; font-weight: 700; letter-spacing: -.01em; }
+  h1 { font-size: clamp(2.3rem, 6vw, 3.6rem); font-weight: 800; letter-spacing: -.03em; }
+  h1 em { font-style: normal; color: var(--accent); }
+  .lede { margin-top: 22px; font-size: 1.16rem; color: var(--muted); max-width: 62ch; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
+  .btn {
+    display: inline-block; padding: 11px 20px; border-radius: 8px;
+    font-size: .93rem; font-weight: 600; text-decoration: none;
+  }
+  .btn-primary { background: var(--accent); color: #18120a; }
+  .btn-ghost { border: 1px solid var(--border); color: var(--ink); }
+  .btn:hover { opacity: .88; }
+  .platforms { margin-top: 20px; font-size: .82rem; color: var(--muted); }
+
+  h2 { font-size: 1.72rem; font-weight: 700; letter-spacing: -.02em; margin-bottom: 12px; }
+  .sub { color: var(--muted); max-width: 66ch; margin-bottom: 34px; }
+
+  /* feature grid */
+  .grid { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .card {
+    background: var(--raised); border: 1px solid var(--border);
+    border-radius: 12px; padding: 22px;
+  }
+  .card h3 { font-size: 1rem; font-weight: 650; margin-bottom: 8px; }
+  .card p { font-size: .89rem; color: var(--muted); }
+
+  /* app mockup */
+  .app {
+    border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+    background: var(--surface); box-shadow: 0 24px 60px rgba(0,0,0,.45);
+  }
+  .chrome {
+    display: flex; gap: 7px; padding: 11px 14px;
+    background: var(--raised); border-bottom: 1px solid var(--border);
+  }
+  .dot { width: 11px; height: 11px; border-radius: 50%; background: #34343a; }
+  .panes { display: grid; grid-template-columns: 190px minmax(0,1fr); }
+  .side { background: var(--raised); border-right: 1px solid var(--border); padding: 14px; font-size: 12px; }
+  .side .eyebrow { font-size: 9px; margin-bottom: 8px; }
+  .side .row { padding: 4px 8px; border-radius: 5px; color: var(--muted); display: flex; gap: 8px; }
+  .side .row.on { background: rgba(212,162,76,.18); color: var(--accent); }
+  .side .row .h { margin-left: auto; color: var(--amber); }
+  .main { padding: 22px; min-width: 0; }
+  .title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 11px; margin-bottom: 3px; }
+  .title h3 { font-size: 1.13rem; font-weight: 700; }
+  .pill {
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 1px 7px; font-size: 11px; color: var(--amber);
+  }
+  .item { display: flex; gap: 9px; align-items: flex-start; padding: 5px 6px; border-radius: 6px; }
+  .box {
+    width: 15px; height: 15px; flex: none; margin-top: 3px;
+    border: 1.5px solid rgba(255,255,255,.3); border-radius: 3px;
+  }
+  .box.on { background: var(--accent); border-color: var(--accent); }
+  .txt { min-width: 0; flex: 1; font-size: 13.5px; }
+  .txt.done { text-decoration: line-through; opacity: .45; }
+  .tag {
+    font-size: 11px; padding: 1px 7px; border-radius: 999px;
+    background: rgba(212,162,76,.16); color: var(--accent); white-space: nowrap;
+  }
+  .time { font-family: var(--mono); font-size: 11px; color: var(--amber); white-space: nowrap; }
+  .stamp { font-family: var(--mono); font-size: 10.5px; color: rgba(232,232,234,.38); white-space: nowrap; }
+  .carried {
+    font-size: 10.5px; padding: 1px 7px; border-radius: 999px;
+    background: rgba(224,169,74,.15); color: var(--amber); white-space: nowrap;
+  }
+  .body {
+    margin: 6px 0 0 4px; padding-left: 12px;
+    border-left: 2px solid rgba(255,255,255,.12);
+    font-size: 12.5px; color: var(--muted);
+  }
+  .meta { display: flex; flex-wrap: wrap; gap: 7px; align-items: baseline; }
+  .push { margin-left: auto; }
+
+  pre {
+    background: #0f0f11; border: 1px solid var(--border); border-radius: 9px;
+    padding: 16px 18px; overflow-x: auto; font-size: 12.6px; line-height: 1.62; margin: 0;
+  }
+  pre .c { color: #6f6f78; }
+  pre .k { color: var(--accent); }
+  pre .s { color: #86c99b; }
+  pre .t { color: var(--amber); }
+
+  table { width: 100%; border-collapse: collapse; font-size: .89rem; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .09em; font-weight: 700; }
+  kbd {
+    font-family: var(--mono); font-size: 11.5px; border: 1px solid var(--border);
+    border-radius: 4px; padding: 1px 6px; background: var(--raised); white-space: nowrap;
+  }
+  .scroll { overflow-x: auto; }
+
+  .two { display: grid; gap: 26px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+
+  footer { padding: 46px 0 64px; border-top: 1px solid var(--border); color: var(--muted); font-size: .85rem; }
+  footer a { margin-right: 18px; }
+
+  @media (max-width: 720px) {
+    .panes { grid-template-columns: 1fr; }
+    .side { border-right: 0; border-bottom: 1px solid var(--border); }
+    .stamp, .push { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="logo">
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="7" fill="#1c1c1f"/>
+        <path d="M8 11h16M8 16h16M8 21h10" stroke="#d4a24c" stroke-width="2.4" stroke-linecap="round"/>
+      </svg>
+      <span>Nota</span>
+    </div>
+
+    <h1>Your day, <em>one note at a time</em>.</h1>
+    <p class="lede">
+      A desktop note app built around a single idea: one dated workplan per day. When tomorrow
+      starts, the things you didn't finish come with you and the things you did stay behind.
+      Everything is a plain markdown file in a directory you own.
+    </p>
+
+    <div class="cta">
+      <a class="btn btn-primary" href="#install">Install</a>
+      <a class="btn btn-ghost" href="https://github.com/vishnu-kyatannawar/nota">Source on GitHub</a>
+      <a class="btn btn-ghost" href="https://github.com/vishnu-kyatannawar/nota/releases/latest">Latest release</a>
+    </div>
+    <p class="platforms">Linux and Windows · single binary · MIT licensed</p>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">The daily workplan</p>
+    <h2 style="margin-top:10px">Type it, don't click it</h2>
+    <p class="sub">
+      Press Enter and the checkbox is already there. Tab nests. Type <code>#label</code> inline.
+      Log time as <code>hh:mm</code>. Paste code under any item.
+    </p>
+
+    <div class="app">
+      <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+      <div class="panes">
+        <aside class="side">
+          <p class="eyebrow">Workplans</p>
+          <div class="row on"><span>2026-09-02</span><span class="h">01:20</span></div>
+          <div class="row"><span>2026-09-01</span><span class="h">09:00</span></div>
+          <div class="row"><span>2026-08-31</span><span class="h" style="color:var(--muted)">00:00</span></div>
+          <div class="row"><span>2026-08-29</span><span class="h">07:45</span></div>
+          <p class="eyebrow" style="margin-top:16px">Vault</p>
+          <div class="row">▾ Projects</div>
+          <div class="row" style="padding-left:20px">api-notes</div>
+          <div class="row">▸ Reference</div>
+          <p class="eyebrow" style="margin-top:16px">Labels</p>
+          <div style="display:flex;flex-wrap:wrap;gap:5px">
+            <span class="tag">#rv-api</span><span class="tag">#daily</span><span class="tag">#billing</span>
+          </div>
+        </aside>
+
+        <div class="main">
+          <div class="title">
+            <h3>2026-09-02 <span style="opacity:.35;font-weight:400">-</span> <span class="mono" style="color:var(--amber)">01:20</span></h3>
+            <span class="pill">work</span>
+            <span class="stamp push">3 open · 1 done</span>
+          </div>
+          <p class="stamp" style="margin-bottom:16px">Workplans/2026-09-02.md</p>
+
+          <div class="item">
+            <span class="box"></span>
+            <div class="txt"><div class="meta">
+              <span>Check calendar</span><span class="tag">#daily</span>
+              <span class="stamp push">added 08:55</span>
+            </div></div>
+          </div>
+
+          <div class="item">
+            <span class="box on"></span>
+            <div class="txt">
+              <div class="meta">
+                <span class="done">Fix auth token expiry</span>
+                <span class="tag">#rv-api</span><span class="time">[01:20]</span>
+                <span class="stamp push">added 09:34 · done 11:02</span>
+              </div>
+              <div class="body">
+                Middleware compares <code style="color:var(--amber)">exp &lt; now</code> — off by one on the boundary second.
+                <pre style="margin-top:8px"><code><span class="k">if</span> exp &lt;= now {
+    <span class="k">return</span> ErrExpired
+}</code></pre>
+              </div>
+            </div>
+          </div>
+
+          <div class="item">
+            <span class="box"></span>
+            <div class="txt"><div class="meta">
+              <span>Review PR 412</span><span class="tag">#rv-portal</span>
+              <span class="carried">carried 1d</span>
+              <span class="stamp push">added 09:40 on 09-01</span>
+            </div></div>
+          </div>
+
+          <div class="item">
+            <span class="box" style="border-style:dashed;opacity:.5"></span>
+            <div class="txt" style="opacity:.4">Type an item and press Enter</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>What it does</h2>
+    <p class="sub">Small on purpose. These are the things a working day actually needs.</p>
+    <div class="grid">
+      <div class="card">
+        <h3>Rollover that remembers</h3>
+        <p>Unfinished items move to the new day keeping their id, original creation time, labels,
+        logged time, notes and nesting. Finished ones stay on the day you finished them.</p>
+      </div>
+      <div class="card">
+        <h3>No broken chains</h3>
+        <p>Monday carries from Friday. The rule is "the most recent workplan", never "yesterday",
+        so weekends, leave and holidays don't lose your list.</p>
+      </div>
+      <div class="card">
+        <h3>Hours per day</h3>
+        <p>Every workplan shows the time worked — <span class="mono">2026-09-02 - 09:00</span> — sitting at
+        <span class="mono">00:00</span> on a weekend, leave day or holiday. Item logs suggest a total; you set it.</p>
+      </div>
+      <div class="card">
+        <h3>When did I add this?</h3>
+        <p>Every item records the moment you typed it, and keeps it across every rollover. An item
+        nagging you since the 1st still says so on the 5th.</p>
+      </div>
+      <div class="card">
+        <h3>Labels, optional</h3>
+        <p>Type <span class="mono">#label</span> anywhere in an item. Search by it later, or ignore the
+        feature entirely — nothing requires one.</p>
+      </div>
+      <div class="card">
+        <h3>Code and JSON</h3>
+        <p>Fenced blocks with real syntax highlighting, under an item or anywhere in the note.
+        Paste a stack trace and it still reads like one.</p>
+      </div>
+      <div class="card">
+        <h3>Repeating items</h3>
+        <p>Check the calendar, log the bill. Daily, weekdays or a given weekday, from one
+        hand-editable file. Delete one for today and it stays gone for today.</p>
+      </div>
+      <div class="card">
+        <h3>Export and restore</h3>
+        <p>One zip of the whole vault, and back again. Complete by construction, because the
+        markdown <em>is</em> the data.</p>
+      </div>
+      <div class="card">
+        <h3>Nested folders</h3>
+        <p>The sidebar tree is the directory tree. Nothing is hidden in a database you can't read.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Your notes stay yours</h2>
+    <p class="sub">
+      The markdown files are the source of truth. The app keeps a SQLite index for search, but it's
+      a cache — delete it and it rebuilds. If Nota disappeared tomorrow, your notes would still open
+      in any editor.
+    </p>
+
+    <div class="two">
+      <div>
+        <p class="eyebrow" style="margin-bottom:12px">On disk</p>
+        <pre><code><span class="c">~/Notes/</span>
+  <span class="k">Workplans/</span>      <span class="c"># one note per day</span>
+    2026-09-01.md
+    2026-09-02.md
+  <span class="k">Projects/</span>
+    rv-license/
+      api-notes.md
+  <span class="c">.nota/          # settings, templates, index</span></code></pre>
+        <p class="sub" style="margin-top:16px;font-size:.86rem">
+          <code>grep -r "auth bug" ~/Notes</code> works. So does <code>git init</code>, and so does
+          syncing the folder with anything you already use.
+        </p>
+      </div>
+
+      <div>
+        <p class="eyebrow" style="margin-bottom:12px">Inside a workplan</p>
+        <pre><code><span class="c">---</span>
+<span class="k">type:</span> workplan
+<span class="k">date:</span> 2026-09-02
+<span class="k">hours:</span> <span class="s">"01:20"</span>
+<span class="k">daytype:</span> work
+<span class="c">---</span>
+
+- [ ] Check calendar <span class="t">#daily</span> <span class="c">&lt;!--n id:01K6M2R0 t:08:55--&gt;</span>
+- [x] Fix auth expiry <span class="t">#rv-api [01:20]</span>
+      Off by one on the boundary second.
+
+- [ ] Review PR 412 <span class="c">&lt;!--n from:2026-09-01 carried:1--&gt;</span></code></pre>
+        <p class="sub" style="margin-top:16px;font-size:.86rem">
+          Labels and time stay visible where you'd write them. Only ids and timestamps hide in a
+          comment markdown doesn't render. The filename stays the date — logging time never renames a file.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Keyboard</h2>
+    <p class="sub">You asked for no clicking. There is no clicking.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Key</th><th>Does</th></tr></thead>
+        <tbody>
+          <tr><td><kbd>Enter</kbd></td><td>New item below, checkbox already there</td></tr>
+          <tr><td><kbd>Tab</kbd> / <kbd>Shift+Tab</kbd></td><td>Indent or outdent to nest</td></tr>
+          <tr><td><kbd>Ctrl+Enter</kbd></td><td>Tick it done, stamping the time</td></tr>
+          <tr><td><kbd>Ctrl+T</kbd></td><td>Log time on the item, as <span class="mono">hh:mm</span></td></tr>
+          <tr><td><kbd>Ctrl+Shift+N</kbd></td><td>Open the item's notes for prose or code</td></tr>
+          <tr><td><kbd>Ctrl+E</kbd></td><td>Swap the whole note to raw markdown and back</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <h2>Install</h2>
+    <p class="sub">
+      No root or administrator rights. Both scripts verify the download against the release's
+      published SHA-256 before installing anything.
+    </p>
+
+    <div class="two">
+      <div>
+        <p class="eyebrow" style="margin-bottom:12px">Linux</p>
+        <pre><code>curl -fsSL https://raw.githubusercontent.com/\
+vishnu-kyatannawar/nota/main/install.sh | sh</code></pre>
+        <p class="sub" style="margin-top:14px;font-size:.86rem">
+          Installs to <code>~/.local/bin</code> with a desktop entry. Needs GTK4 and WebKitGTK 6 —
+          the script checks first and prints the right package name for your distribution.
+        </p>
+      </div>
+      <div>
+        <p class="eyebrow" style="margin-bottom:12px">Windows</p>
+        <pre><code>irm https://raw.githubusercontent.com/\
+vishnu-kyatannawar/nota/main/install.ps1 | iex</code></pre>
+        <p class="sub" style="margin-top:14px;font-size:.86rem">
+          Installs to <code>%LOCALAPPDATA%\Programs\Nota</code> with a Start menu shortcut. Needs
+          WebView2, which ships with Windows 10 21H2 and later.
+        </p>
+      </div>
+    </div>
+
+    <p class="sub" style="margin-top:28px">
+      Prefer to build it yourself? <code>git clone</code>, then <code>wails3 build</code>.
+      The <a href="https://github.com/vishnu-kyatannawar/nota#development">README</a> has the full list.
+    </p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <a href="https://github.com/vishnu-kyatannawar/nota">GitHub</a>
+    <a href="https://github.com/vishnu-kyatannawar/nota/releases/latest">Releases</a>
+    <a href="https://github.com/vishnu-kyatannawar/nota/issues">Issues</a>
+    <a href="https://github.com/vishnu-kyatannawar/nota/blob/main/LICENSE">MIT licence</a>
+    <p style="margin-top:16px">Built with Go and Wails. Your notes are markdown files, and they always will be.</p>
+  </div>
+</footer>
+
+</body>
+</html>
