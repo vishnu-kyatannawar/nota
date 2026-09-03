@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { LocalItem, ItemsAction } from "../lib/items";
-import { isMultiLinePaste, splitPastedList } from "../lib/items";
+import { headingShortcut, isMultiLinePaste, splitPastedList } from "../lib/items";
 import { addLabel, joinLabels, labelAtCaret, removeLabel, splitLabels } from "../lib/labels";
 import { CodeEditor } from "./CodeEditor";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
+import { Icon } from "./Icon";
 
 type Props = {
   item: LocalItem;
@@ -18,13 +19,74 @@ type Props = {
 };
 
 /**
- * One action item. The input holds the item's words; its #labels render as
- * chips beside it with an × each, and typing "#" offers existing labels. The
- * file keeps the same trailing-#label format it always had — only the way it
- * is shown changed.
+ * One row: an action item, or a group heading between items. Item text is a
+ * plain input with #labels as chips beside it; the file keeps its trailing
+ * #label format. The actions a person reaches for constantly — today, done,
+ * delete — are one click on hover or one key, with ⋯ for the rest.
  */
-export function ItemRow({ item, index, focused, caret, dispatch, dark, allLabels, onMoveToToday }: Props) {
+export function ItemRow(props: Props) {
+  return props.item.kind === "heading" ? <HeadingRow {...props} /> : <TaskRow {...props} />;
+}
+
+function useRowFocus(focused: boolean, caret: "end" | number) {
   const input = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    if (!focused) return;
+    const el = input.current;
+    if (!el) return;
+    el.focus();
+    const pos = caret === "end" ? el.value.length : Math.min(caret, el.value.length);
+    el.setSelectionRange(pos, pos);
+  }, [focused, caret]);
+  return input;
+}
+
+function HeadingRow({ item, index, focused, caret, dispatch }: Props) {
+  const input = useRowFocus(focused, caret);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const mod = e.ctrlKey || e.metaKey;
+    switch (e.key) {
+      case "Enter": e.preventDefault(); dispatch({ type: "insertAfter", index }); return;
+      case "ArrowUp": e.preventDefault(); dispatch({ type: "move", index, delta: -1 }); return;
+      case "ArrowDown": e.preventDefault(); dispatch({ type: "move", index, delta: 1 }); return;
+      case "Backspace":
+        if (mod || item.text === "") { e.preventDefault(); dispatch({ type: "remove", index }); }
+        return;
+      case "Delete": if (mod) { e.preventDefault(); dispatch({ type: "remove", index }); } return;
+      case "Escape": input.current?.blur(); return;
+      default:
+    }
+  };
+
+  const menuItems: MenuItem[] = [
+    { label: "Turn into item", onSelect: () => dispatch({ type: "setKind", index, kind: "" }) },
+    { label: "Delete heading", onSelect: () => dispatch({ type: "remove", index }), danger: true },
+  ];
+
+  return (
+    <div className={`group flex items-center gap-2 rounded-md px-1.5 pb-1 pt-3 ${index === 0 ? "pt-1" : ""}`}>
+      <Icon name="heading" size={14} className="shrink-0 text-ink-muted" />
+      <input
+        ref={input}
+        value={item.text}
+        onChange={(e) => dispatch({ type: "setText", index, text: e.target.value })}
+        onFocus={() => { if (!focused) dispatch({ type: "focus", index, caret: input.current?.selectionStart ?? "end" }); }}
+        onKeyDown={onKeyDown}
+        placeholder="Heading"
+        aria-label="Heading"
+        className="min-w-0 flex-1 bg-transparent py-0.5 text-[13px] font-semibold uppercase tracking-[0.08em] text-ink outline-none placeholder:text-ink-faint"
+      />
+      <RowButton label="Delete heading" danger onClick={() => dispatch({ type: "remove", index })}><Icon name="trash" /></RowButton>
+      <RowButton label="More" onClick={(e) => setMenu({ x: e.clientX, y: e.clientY })}><Icon name="more" /></RowButton>
+      {menu && <ContextMenu x={menu.x} y={menu.y} items={menuItems} onClose={() => setMenu(null)} />}
+    </div>
+  );
+}
+
+function TaskRow({ item, index, focused, caret, dispatch, dark, allLabels, onMoveToToday }: Props) {
+  const input = useRowFocus(focused, caret);
   const { plain, labels } = splitLabels(item.text);
 
   // The input edits `draft`; the saved text is recomposed from it and the chips.
@@ -39,18 +101,18 @@ export function ItemRow({ item, index, focused, caret, dispatch, dark, allLabels
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [suggest, setSuggest] = useState<{ start: number; query: string; pick: number } | null>(null);
 
-  useEffect(() => {
-    if (!focused) return;
-    const el = input.current;
-    if (!el) return;
-    el.focus();
-    const pos = caret === "end" ? el.value.length : Math.min(caret, el.value.length);
-    el.setSelectionRange(pos, pos);
-  }, [focused, caret]);
-
   const commitText = (text: string) => dispatch({ type: "setText", index, text });
 
   const setPlain = (value: string, caretPos: number) => {
+    // "## " at the start of an empty row makes it a heading, markdown-style.
+    if (item.text === "" && labels.length === 0) {
+      const h = headingShortcut(value);
+      if (h) {
+        dispatch({ type: "setKind", index, kind: "heading" });
+        commitText(h.rest);
+        return;
+      }
+    }
     // A finished "#label " inside the words becomes a chip straight away.
     if (/(?:^|\s)#[\p{L}\p{N}_/-]+\s$/u.test(value)) {
       const typed = splitLabels(value);
@@ -80,6 +142,15 @@ export function ItemRow({ item, index, focused, caret, dispatch, dark, allLabels
     setSuggest(null);
   };
 
+  const toggleBody = () => {
+    if (showBody) {
+      dispatch({ type: "setBody", index, body: [] });
+      setShowBody(false);
+    } else {
+      setShowBody(true);
+    }
+  };
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     const mod = e.ctrlKey || e.metaKey;
 
@@ -100,26 +171,15 @@ export function ItemRow({ item, index, focused, caret, dispatch, dark, allLabels
       case "ArrowDown": e.preventDefault(); dispatch({ type: "move", index, delta: 1 }); return;
       case "Tab": e.preventDefault(); dispatch({ type: "indent", index, delta: e.shiftKey ? -1 : 1 }); return;
       case "Backspace":
-        if (draft === "" && labels.length === 0 && item.body.length === 0) { e.preventDefault(); dispatch({ type: "remove", index }); }
+        if (mod) { e.preventDefault(); dispatch({ type: "remove", index }); }
+        else if (draft === "" && labels.length === 0 && item.body.length === 0) { e.preventDefault(); dispatch({ type: "remove", index }); }
         else if (draft === "" && labels.length > 0) { e.preventDefault(); commitText(removeLabel(item.text, labels[labels.length - 1])); }
         return;
+      case "Delete": if (mod) { e.preventDefault(); dispatch({ type: "remove", index }); } return;
       case "Escape": input.current?.blur(); return;
-      case "n": case "N":
-        if (mod && e.shiftKey) { e.preventDefault(); toggleBody(); }
-        return;
-      case "m": case "M":
-        if (mod && e.shiftKey && onMoveToToday) { e.preventDefault(); onMoveToToday(); }
-        return;
+      case "n": case "N": if (mod && e.shiftKey) { e.preventDefault(); toggleBody(); } return;
+      case "m": case "M": if (mod && e.shiftKey && onMoveToToday) { e.preventDefault(); onMoveToToday(); } return;
       default:
-    }
-  };
-
-  const toggleBody = () => {
-    if (showBody) {
-      dispatch({ type: "setBody", index, body: [] });
-      setShowBody(false);
-    } else {
-      setShowBody(true);
     }
   };
 
@@ -131,14 +191,14 @@ export function ItemRow({ item, index, focused, caret, dispatch, dark, allLabels
   };
 
   const menuItems: MenuItem[] = [
-    ...(onMoveToToday ? [{ label: "Move to today's workplan", onSelect: onMoveToToday }] : []),
     { label: showBody ? "Remove notes" : "Add notes", onSelect: toggleBody },
-    { label: item.done ? "Mark not done" : "Mark done", onSelect: () => dispatch({ type: "toggle", index }) },
+    { label: "Turn into heading", onSelect: () => dispatch({ type: "setKind", index, kind: "heading" }) },
+    ...(onMoveToToday ? [{ label: "Move to today's workplan", onSelect: onMoveToToday }] : []),
     { label: "Delete item", onSelect: () => dispatch({ type: "remove", index }), danger: true },
   ];
 
   return (
-    <div className="group relative rounded-md px-1.5 py-1 hover:bg-surface-raised" style={{ marginLeft: item.depth * 22 }}>
+    <div className="group relative rounded-md px-1.5 py-1 hover:bg-surface-raised focus-within:bg-surface-raised" style={{ marginLeft: item.depth * 22 }}>
       <div className="flex items-start gap-2.5">
         <button
           type="button"
@@ -147,15 +207,11 @@ export function ItemRow({ item, index, focused, caret, dispatch, dark, allLabels
           aria-label={item.done ? "Mark as not done" : "Mark as done"}
           tabIndex={-1}
           onClick={() => dispatch({ type: "toggle", index })}
-          className={`mt-[3px] flex h-4 w-4 shrink-0 items-center justify-center rounded border transition ${
+          className={`mt-[2px] flex h-[17px] w-[17px] shrink-0 items-center justify-center rounded-[4px] border-[1.5px] transition ${
             item.done ? "border-accent bg-accent text-accent-ink" : "border-border-strong bg-surface-raised hover:border-accent"
           }`}
         >
-          {item.done && (
-            <svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true">
-              <path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          )}
+          {item.done && <Icon name="check" size={12} className="[&>path]:stroke-[3]" />}
         </button>
 
         <div className="relative min-w-0 flex-1">
@@ -172,24 +228,16 @@ export function ItemRow({ item, index, focused, caret, dispatch, dark, allLabels
               }}
               onKeyDown={onKeyDown}
               onPaste={onPaste}
-              placeholder={index === 0 && item.text === "" ? "Type an item…" : ""}
+              placeholder={index === 0 && item.text === "" ? "Type an item, or ## for a heading…" : ""}
               aria-label="Item text"
-              className={`min-w-[8rem] flex-1 bg-transparent py-0.5 text-[14px] outline-none placeholder:text-ink-faint ${
+              className={`min-w-[8rem] flex-1 bg-transparent py-0.5 outline-none placeholder:text-ink-faint ${
                 item.done ? "text-ink-faint line-through" : "text-ink"
               }`}
             />
             {labels.map((l) => (
-              <span key={l} className="inline-flex items-center gap-0.5 rounded-full bg-accent-soft pl-1.5 pr-0.5 text-[11px] leading-5 text-accent">
+              <span key={l} className="inline-flex items-center gap-0.5 rounded-full bg-accent-soft pl-1.5 pr-0.5 text-[12px] leading-5 text-accent">
                 #{l}
-                <button
-                  type="button"
-                  tabIndex={-1}
-                  aria-label={`Remove label ${l}`}
-                  onClick={() => commitText(removeLabel(item.text, l))}
-                  className="rounded-full px-1 hover:bg-accent hover:text-accent-ink"
-                >
-                  ×
-                </button>
+                <button type="button" tabIndex={-1} aria-label={`Remove label ${l}`} onClick={() => commitText(removeLabel(item.text, l))} className="rounded-full px-1 hover:bg-accent hover:text-accent-ink">×</button>
               </span>
             ))}
           </div>
@@ -205,46 +253,57 @@ export function ItemRow({ item, index, focused, caret, dispatch, dark, allLabels
                   onMouseDown={(e) => { e.preventDefault(); pickSuggestion(s); }}
                   className={`block w-full px-2.5 py-1 text-left ${i === suggest.pick ? "bg-accent-soft text-accent" : "hover:bg-surface-sunken"}`}
                 >
-                  #{s}{!allLabels.includes(s) && <span className="ml-1 text-ink-faint">new</span>}
+                  #{s}{!allLabels.includes(s) && <span className="ml-1 text-ink-muted">new</span>}
                 </button>
               ))}
             </div>
           )}
         </div>
 
-        <div className="flex shrink-0 items-center gap-1.5 pt-[3px] text-[11px]">
+        <div className="flex shrink-0 items-center gap-0.5 pt-[1px]">
           {(item.carried ?? 0) > 0 && (
-            <span className="rounded-full bg-surface-sunken px-1.5 py-px text-ink-muted" title={`First added on ${item.from}`}>{item.carried}d</span>
+            <span className="mr-1 rounded-full bg-surface-sunken px-1.5 py-px text-[11px] text-ink-muted" title={`First added on ${item.from}`}>{item.carried}d</span>
           )}
-          <span className="font-mono text-ink-faint">{item.createdAt}{item.doneAt && ` · ✓ ${item.doneAt}`}</span>
-          <button
-            type="button"
-            tabIndex={-1}
-            aria-label="Item actions"
-            onClick={(e) => setMenu({ x: e.clientX, y: e.clientY })}
-            className="rounded px-1 text-ink-faint opacity-0 hover:text-ink group-hover:opacity-100 focus:opacity-100"
-          >
-            ⋯
-          </button>
+          <span className="mr-1 font-mono text-[11px] text-ink-muted">{item.createdAt}{item.doneAt && ` · ✓ ${item.doneAt}`}</span>
+          {onMoveToToday && (
+            <RowButton label="Move to today's workplan (Ctrl+Shift+M)" onClick={onMoveToToday}><Icon name="today" /></RowButton>
+          )}
+          <RowButton label={item.done ? "Reopen (Ctrl+Enter)" : "Mark done (Ctrl+Enter)"} onClick={() => dispatch({ type: "toggle", index })}>
+            <Icon name={item.done ? "undo" : "check"} />
+          </RowButton>
+          <RowButton label="Delete item (Ctrl+Backspace)" danger onClick={() => dispatch({ type: "remove", index })}><Icon name="trash" /></RowButton>
+          <RowButton label="More" onClick={(e) => setMenu({ x: e.clientX, y: e.clientY })}><Icon name="more" /></RowButton>
         </div>
       </div>
 
       {showBody && (
-        <div className="ml-[26px] mt-1.5">
-          <div className="mb-1 flex items-center text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-faint">
+        <div className="ml-[27px] mt-1.5">
+          <div className="mb-1 flex items-center text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-muted">
             Notes
-            <button type="button" tabIndex={-1} onClick={toggleBody} aria-label="Remove notes" className="ml-auto rounded px-1 text-[12px] normal-case tracking-normal hover:text-danger">×</button>
+            <button type="button" tabIndex={-1} onClick={toggleBody} aria-label="Remove notes" className="ml-auto rounded px-1 text-[13px] normal-case tracking-normal hover:text-danger">×</button>
           </div>
-          <CodeEditor
-            value={item.body.join("\n")}
-            minHeight="4rem"
-            dark={dark}
-            onChange={(v) => dispatch({ type: "setBody", index, body: v === "" ? [] : v.split("\n") })}
-          />
+          <CodeEditor value={item.body.join("\n")} minHeight="4rem" dark={dark} onChange={(v) => dispatch({ type: "setBody", index, body: v === "" ? [] : v.split("\n") })} />
         </div>
       )}
 
       {menu && <ContextMenu x={menu.x} y={menu.y} items={menuItems} onClose={() => setMenu(null)} />}
     </div>
+  );
+}
+
+function RowButton({ label, danger, onClick, children }: { label: string; danger?: boolean; onClick: (e: React.MouseEvent<HTMLButtonElement>) => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      tabIndex={-1}
+      title={label}
+      aria-label={label}
+      onClick={onClick}
+      className={`flex h-6 w-6 items-center justify-center rounded text-ink-muted opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 ${
+        danger ? "hover:bg-danger/10 hover:text-danger" : "hover:bg-accent-soft hover:text-accent"
+      }`}
+    >
+      {children}
+    </button>
   );
 }

@@ -8,10 +8,14 @@ import {
   BackupService,
 } from "../../bindings/github.com/vishnu-kyatannawar/nota/services";
 import type { Theme } from "./theme";
+import type { Fonts } from "./fonts";
+import type { ItemInput } from "./items";
 
 export type Node = { name: string; path: string; isFolder: boolean; children?: Node[] };
 
 export type NoteItem = {
+  kind: string;
+  level: number;
   id: string;
   text: string;
   done: boolean;
@@ -52,9 +56,8 @@ export type Workplan = {
   done: number;
 };
 
-export type ItemInput = { id: string; text: string; done: boolean; depth: number; body: string[] };
 export type SavedItem = {
-  ID: string; Text: string; Done: boolean; Depth: number; Body: string[] | null;
+  Kind: string; Level: number; ID: string; Text: string; Done: boolean; Depth: number; Body: string[] | null;
   CreatedAt: string; DoneAt: string; From: string; Carried: number; Recurring: string;
 };
 
@@ -62,7 +65,7 @@ export type Hit = { path: string; snippet: string };
 export type Label = { name: string; count: number };
 export type HoursSummary = { from: string; to: string; minutes: number; hours: string };
 export type Info = {
-  version: string; vaultPath: string; workplanDir: string; theme: Theme;
+  version: string; vaultPath: string; workplanDir: string; theme: Theme; fonts: Fonts;
   repository: string; website: string; releases: string; licence: string;
 };
 export type Settings = {
@@ -74,6 +77,7 @@ export const api = {
   settings: () => AppService.GetSettings() as Promise<Settings>,
   saveSettings: (s: Settings) => AppService.SaveSettings(s as never),
   setTheme: (theme: Theme) => AppService.SetTheme(theme),
+  setFonts: (fonts: Fonts) => AppService.SetFonts(fonts as never),
 
   tree: () => NotesService.Tree() as Promise<Node>,
   note: (path: string) => NotesService.Get(path) as Promise<Note>,

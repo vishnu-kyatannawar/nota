@@ -82,7 +82,7 @@ function Toolbar({ editor }: { editor: Editor }) {
       onMouseDown={(e) => { e.preventDefault(); run(); }}
       aria-pressed={on}
       title={title}
-      className={`h-6 min-w-6 rounded px-1.5 text-[12px] ${cls} ${on ? "bg-accent-soft text-accent" : "text-ink-muted hover:bg-surface-sunken hover:text-ink"}`}
+      className={`h-7 min-w-7 rounded px-1.5 text-[13px] ${cls} ${on ? "bg-accent-soft text-accent" : "text-ink hover:bg-surface-sunken"}`}
     >
       {label}
     </button>

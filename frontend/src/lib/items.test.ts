@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blankItem, initialState, mergeSaved, reducer, splitPastedList, toInputs, type LocalItem } from "./items";
+import { blankItem, headingShortcut, initialState, mergeSaved, reducer, splitPastedList, toInputs, type LocalItem } from "./items";
 
 const item = (text: string, depth = 0, extra: Partial<LocalItem> = {}): LocalItem => ({
   ...blankItem(depth, text),
@@ -142,5 +142,41 @@ describe("save round trip", () => {
     ], [0, 5]);
     expect(merged).toHaveLength(1);
     expect(merged[0].id).toBe("x");
+  });
+});
+
+describe("headings", () => {
+  it("turns a row into a heading and back, resetting what headings cannot have", () => {
+    let s = reducer({ ...initialState, items: [item("Must", 1, { done: true, body: ["x"] })] }, { type: "setKind", index: 0, kind: "heading" });
+    expect(s.items[0]).toMatchObject({ kind: "heading", level: 2, depth: 0, done: false, body: [] });
+    s = reducer(s, { type: "setKind", index: 0, kind: "" });
+    expect(s.items[0]).toMatchObject({ kind: "", level: 0 });
+  });
+
+  it("cannot be toggled or indented", () => {
+    const heading = { ...blankItem(0, "Must", "heading") };
+    let s = reducer({ ...initialState, items: [item("a"), heading] }, { type: "toggle", index: 1 });
+    expect(s.items[1].done).toBe(false);
+    s = reducer(s, { type: "indent", index: 1, delta: 1 });
+    expect(s.items[1].depth).toBe(0);
+  });
+
+  it("Enter under a heading inserts a top-level item", () => {
+    const s = reducer({ ...initialState, items: [blankItem(0, "Must", "heading")] }, { type: "insertAfter", index: 0 });
+    expect(s.items[1]).toMatchObject({ kind: "", depth: 0 });
+    expect(s.focus).toBe(1);
+  });
+
+  it("is sent to the backend with its kind and level", () => {
+    const { inputs } = toInputs([{ ...blankItem(0, "Later", "heading"), level: 3 }, item("a")]);
+    expect(inputs[0]).toMatchObject({ kind: "heading", level: 3, text: "Later" });
+    expect(inputs[1].kind).toBe("");
+  });
+
+  it("recognises the ## shortcut", () => {
+    expect(headingShortcut("## Must")).toEqual({ level: 2, rest: "Must" });
+    expect(headingShortcut("### ")).toEqual({ level: 3, rest: "" });
+    expect(headingShortcut("#notalabel")).toBeNull();
+    expect(headingShortcut("plain")).toBeNull();
   });
 });

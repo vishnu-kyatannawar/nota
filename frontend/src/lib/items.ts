@@ -8,7 +8,13 @@
  * Everything here is pure so it can be unit-tested without React.
  */
 
+export type ItemKind = "" | "heading";
+
 export type LocalItem = {
+  /** "" for an action item, "heading" for a group heading between items. */
+  kind: ItemKind;
+  /** Heading level for headings (new ones are 2); ignored for items. */
+  level: number;
   /** Empty for an item typed since the last save; Go mints the id on save. */
   id: string;
   text: string;
@@ -40,7 +46,8 @@ export type ItemsAction =
   | { type: "setText"; index: number; text: string }
   | { type: "toggle"; index: number }
   | { type: "setBody"; index: number; body: string[] }
-  | { type: "insertAfter"; index: number; text?: string }
+  | { type: "insertAfter"; index: number; text?: string; kind?: ItemKind }
+  | { type: "setKind"; index: number; kind: ItemKind }
   | { type: "remove"; index: number }
   | { type: "indent"; index: number; delta: 1 | -1 }
   | { type: "move"; index: number; delta: 1 | -1 }
@@ -55,8 +62,8 @@ export function newKey(): string {
   return `k${Date.now().toString(36)}${keyCounter}`;
 }
 
-export function blankItem(depth = 0, text = ""): LocalItem {
-  return { id: "", text, done: false, depth, body: [], key: newKey() };
+export function blankItem(depth = 0, text = "", kind: ItemKind = ""): LocalItem {
+  return { kind, level: kind === "heading" ? 2 : 0, id: "", text, done: false, depth: kind === "heading" ? 0 : depth, body: [], key: newKey() };
 }
 
 export const initialState: ItemsState = { items: [], focus: null, caret: "end", dirty: false };
@@ -81,6 +88,7 @@ export function reducer(state: ItemsState, action: ItemsAction): ItemsState {
     }
 
     case "toggle": {
+      if (items[action.index]?.kind === "heading") return state;
       const next = items.slice();
       next[action.index] = { ...next[action.index], done: !next[action.index].done };
       return { ...state, items: next, dirty: true };
@@ -94,10 +102,22 @@ export function reducer(state: ItemsState, action: ItemsAction): ItemsState {
 
     case "insertAfter": {
       const at = action.index;
-      const depth = items[at]?.depth ?? 0;
+      // Under a heading the next row is a top-level item; otherwise it matches the row above.
+      const depth = items[at]?.kind === "heading" ? 0 : (items[at]?.depth ?? 0);
       const next = items.slice();
-      next.splice(at + 1, 0, blankItem(depth, action.text ?? ""));
+      next.splice(at + 1, 0, blankItem(depth, action.text ?? "", action.kind ?? ""));
       return { items: next, focus: at + 1, caret: "end", dirty: true };
+    }
+
+    case "setKind": {
+      const it = items[action.index];
+      if (!it || it.kind === action.kind) return state;
+      const next = items.slice();
+      next[action.index] =
+        action.kind === "heading"
+          ? { ...it, kind: "heading", level: 2, depth: 0, done: false, body: [] }
+          : { ...it, kind: "", level: 0 };
+      return { ...state, items: next, dirty: true };
     }
 
     case "remove": {
@@ -115,6 +135,7 @@ export function reducer(state: ItemsState, action: ItemsAction): ItemsState {
     case "indent": {
       const next = items.slice();
       const it = next[action.index];
+      if (it.kind === "heading") return state;
       const depth = clampDepth(it.depth + action.delta, next[action.index - 1]);
       if (depth === it.depth) return state;
       next[action.index] = { ...it, depth };
@@ -186,7 +207,7 @@ export function isMultiLinePaste(text: string): boolean {
   return splitPastedList(text).length > 1;
 }
 
-export type ItemInput = { id: string; text: string; done: boolean; depth: number; body: string[] };
+export type ItemInput = { kind: ItemKind; level: number; id: string; text: string; done: boolean; depth: number; body: string[] };
 
 /**
  * What gets sent on save. Rows that are empty and have no notes are left out —
@@ -199,7 +220,7 @@ export function toInputs(items: LocalItem[]): { inputs: ItemInput[]; kept: numbe
   const kept: number[] = [];
   items.forEach((it, i) => {
     if (it.text.trim() === "" && it.body.length === 0) return;
-    inputs.push({ id: it.id, text: it.text, done: it.done, depth: it.depth, body: it.body });
+    inputs.push({ kind: it.kind, level: it.level, id: it.id, text: it.text, done: it.done, depth: it.depth, body: it.body });
     kept.push(i);
   });
   return { inputs, kept };
@@ -230,8 +251,10 @@ export function mergeSaved(local: LocalItem[], saved: SavedMeta[], kept: number[
   return next;
 }
 
-export function fromServer(items: { id: string; text: string; done: boolean; depth: number; body: string[] | null; createdAt: string; doneAt: string; from: string; carried: number; recurring: string }[]): LocalItem[] {
+export function fromServer(items: { kind: string; level: number; id: string; text: string; done: boolean; depth: number; body: string[] | null; createdAt: string; doneAt: string; from: string; carried: number; recurring: string }[]): LocalItem[] {
   return items.map((it) => ({
+    kind: it.kind === "heading" ? "heading" : "",
+    level: it.level,
     id: it.id,
     text: it.text,
     done: it.done,
@@ -244,4 +267,10 @@ export function fromServer(items: { id: string; text: string; done: boolean; dep
     recurring: it.recurring,
     key: it.id || newKey(),
   }));
+}
+
+/** Typing "## " (any level) at the start of an empty row turns it into a heading. */
+export function headingShortcut(text: string): { level: number; rest: string } | null {
+  const m = text.match(/^(#{1,6})\s(.*)$/);
+  return m ? { level: m[1].length, rest: m[2] } : null;
 }

@@ -197,8 +197,8 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, onShel
   const showItems = layout !== "notes";
   const showNotes = layout !== "items";
   const isToday = todayPath === path;
-  const open = state.items.filter((i) => !i.done && i.text.trim() !== "").length;
-  const done = state.items.filter((i) => i.done).length;
+  const open = state.items.filter((i) => i.kind !== "heading" && !i.done && i.text.trim() !== "").length;
+  const done = state.items.filter((i) => i.kind !== "heading" && i.done).length;
 
   const run = async (fn: () => Promise<unknown>, then?: () => void) => {
     try {
@@ -327,7 +327,7 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, onShel
 
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
         <div className="mb-3 flex flex-wrap items-center gap-1.5 px-1.5">
-          <span className="font-mono text-[11px] text-ink-faint">{note.path}</span>
+          <span className="font-mono text-[11px] text-ink-muted">{note.path}</span>
           <span className="mx-1 text-ink-faint">·</span>
           {note.labels.map((l) => (
             <span key={l} className="inline-flex items-center gap-0.5 rounded-full bg-accent-soft pl-1.5 pr-0.5 text-[11px] leading-5 text-accent">
@@ -360,7 +360,7 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, onShel
                 {layout === "items" && !isToday && open > 0 && (
                   <button
                     type="button"
-                    onClick={() => void moveToToday(state.items.map((it, i) => (!it.done && it.text.trim() ? i : -1)).filter((i) => i >= 0))}
+                    onClick={() => void moveToToday(state.items.map((it, i) => (it.kind !== "heading" && !it.done && it.text.trim() ? i : -1)).filter((i) => i >= 0))}
                     className="ml-auto rounded px-1.5 py-0.5 text-[11px] normal-case tracking-normal text-accent hover:bg-accent-soft"
                   >
                     Move open items to today →
@@ -410,11 +410,13 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, onShel
         )}
       </div>
 
-      <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-border px-8 py-2 text-[11px] text-ink-faint">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-border px-8 py-2 text-[12px] text-ink-muted">
         <Key k="Enter">new item</Key>
         <Key k="↑ ↓">move</Key>
         <Key k="Tab">indent</Key>
         <Key k="Ctrl+Enter">done</Key>
+        <Key k="Ctrl+⌫">delete</Key>
+        <Key k="## ">heading</Key>
         <Key k="#">label</Key>
         <Key k="Ctrl+Shift+N">notes</Key>
         {!isToday && <Key k="Ctrl+Shift+M">to today</Key>}
@@ -426,7 +428,7 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, onShel
 
 function SectionCaption({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-1.5 flex items-center border-b border-border px-1.5 pb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-faint">
+    <div className="mb-1.5 flex items-center border-b border-border px-1.5 pb-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-muted">
       {children}
     </div>
   );
@@ -443,7 +445,7 @@ function Hint({ onClick, children }: { onClick: () => void; children: React.Reac
 function Key({ k, children }: { k: string; children: React.ReactNode }) {
   return (
     <span>
-      <kbd className="rounded border border-border bg-surface-raised px-1 font-mono text-[10px]">{k}</kbd> {children}
+      <kbd className="rounded border border-border-strong bg-surface-sunken px-1 font-mono text-[11px] text-ink">{k}</kbd> {children}
     </span>
   );
 }
