@@ -33,8 +33,11 @@ release's published SHA-256 before installing it.
   day they were finished. Monday carries from Friday, since the rule is "the most
   recent workplan", not "yesterday".
 - **Hours worked per day**, shown as `2026-09-02 - 09:00`, sitting at `00:00` on a
-  weekend, leave day or holiday. The item logs suggest a total; you own the figure.
-- **Keyboard-first items** — type and press Enter, the checkbox appears for you.
+  weekend, leave day or holiday. One figure per day, set by you.
+- **Keyboard-first items** — type and press Enter, the checkbox appears for you. Arrow
+  keys move between items; paste a list and each line becomes an item.
+- **Light, dark or system theme**, and a window that opens maximised the first time and
+  remembers its size and position after that.
 - **Labels** — type `#label` inline on any item, or list them in a note's frontmatter.
 - **Code and JSON** — fenced blocks with real syntax highlighting, in an item's
   notes or anywhere in the note.
@@ -45,12 +48,14 @@ release's published SHA-256 before installing it.
 
 | Key | Action |
 | --- | --- |
-| `Enter` | New item below |
+| `Enter` | New item below, focused and ready to type |
+| `↑` / `↓` | Move between items |
+| `Backspace` on an empty item | Delete it and move up |
 | `Tab` / `Shift+Tab` | Indent / outdent |
 | `Ctrl+Enter` | Toggle done |
-| `Ctrl+T` | Log time on the item |
 | `Ctrl+Shift+N` | Open the item's notes |
 | `Ctrl+E` | Swap the note to raw markdown and back |
+| Paste several lines | One item per line; `- [x]` lines arrive ticked |
 
 ## Prerequisites
 
@@ -129,8 +134,8 @@ so copying the directory carries the configuration with it.
   .nota/              settings, templates, index.db
 ```
 
-A workplan looks like this. Labels and logged time stay visible where you would
-write them; only ids and timestamps hide in a comment markdown does not render.
+A workplan looks like this. Labels stay visible where you would write them; only
+ids and timestamps hide in a comment markdown does not render.
 
 ```markdown
 ---
@@ -141,7 +146,7 @@ daytype: work
 ---
 
 - [ ] Check calendar #daily <!--n id:01K6M2R0 t:08:55 rec:daily-->
-- [x] Fix auth token expiry #rv-api [01:20] <!--n id:01K6M2R4 t:09:34 done:11:02-->
+- [x] Fix auth token expiry #rv-api <!--n id:01K6M2R4 t:09:34 done:11:02-->
       Middleware compares `exp < now`, off by one on the boundary second.
 
       ```go

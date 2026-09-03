@@ -10,21 +10,42 @@
 <meta property="og:description" content="One dated workplan per day. Unfinished items roll forward, finished ones stay behind. Your notes are plain markdown files in a directory you own.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://vishnu-kyatannawar.github.io/nota/">
-<meta name="theme-color" content="#141416">
+<meta name="theme-color" content="#5b5bd6">
 
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23141416'/%3E%3Cpath d='M8 11h16M8 16h16M8 21h10' stroke='%23d4a24c' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024'%3E%3Crect width='1024' height='1024' rx='228' fill='%235b5bd6'/%3E%3Cg stroke='%23fff' stroke-width='72' stroke-linecap='round' stroke-linejoin='round' fill='none'%3E%3Cpath d='M252 332h520M252 528l84 84 152-152M560 528h212M252 724h368'/%3E%3C/g%3E%3C/svg%3E">
 
 <style>
-  /* The app's own palette, so the page and the product look like one thing. */
+  /* The app's own palette, so the page and the product look like one thing.
+     Light by default, dark when the visitor's system is — exactly like the app. */
   :root {
-    --surface: #141416;
-    --raised: #1c1c1f;
-    --border: #2a2a2e;
-    --ink: #e8e8ea;
-    --muted: #9a9aa2;
-    --accent: #d4a24c;
-    --amber: #e0a94a;
+    color-scheme: light dark;
+    --surface: #fafafa;
+    --raised: #ffffff;
+    --sunken: #f1f1f4;
+    --border: #e6e6ea;
+    --ink: #1b1b22;
+    --muted: #6b6b76;
+    --faint: #a0a0aa;
+    --accent: #5b5bd6;
+    --accent-soft: #eaeafb;
+    --code: #f4f4f7;
+    --shadow: rgba(20, 20, 40, .12);
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface: #0f1014;
+      --raised: #16171d;
+      --sunken: #0a0b0e;
+      --border: #23242c;
+      --ink: #e8e8ec;
+      --muted: #9a9aa6;
+      --faint: #5d5d68;
+      --accent: #7b7bea;
+      --accent-soft: #23234a;
+      --code: #121319;
+      --shadow: rgba(0, 0, 0, .5);
+    }
   }
   *, *::before, *::after { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
@@ -60,7 +81,7 @@
     display: inline-block; padding: 11px 20px; border-radius: 8px;
     font-size: .93rem; font-weight: 600; text-decoration: none;
   }
-  .btn-primary { background: var(--accent); color: #18120a; }
+  .btn-primary { background: var(--accent); color: #fff; }
   .btn-ghost { border: 1px solid var(--border); color: var(--ink); }
   .btn:hover { opacity: .88; }
   .platforms { margin-top: 20px; font-size: .82rem; color: var(--muted); }
@@ -80,67 +101,66 @@
   /* app mockup */
   .app {
     border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
-    background: var(--surface); box-shadow: 0 24px 60px rgba(0,0,0,.45);
+    background: var(--surface); box-shadow: 0 24px 60px var(--shadow);
   }
   .chrome {
     display: flex; gap: 7px; padding: 11px 14px;
     background: var(--raised); border-bottom: 1px solid var(--border);
   }
-  .dot { width: 11px; height: 11px; border-radius: 50%; background: #34343a; }
+  .dot { width: 11px; height: 11px; border-radius: 50%; background: var(--border); }
   .panes { display: grid; grid-template-columns: 190px minmax(0,1fr); }
   .side { background: var(--raised); border-right: 1px solid var(--border); padding: 14px; font-size: 12px; }
   .side .eyebrow { font-size: 9px; margin-bottom: 8px; }
   .side .row { padding: 4px 8px; border-radius: 5px; color: var(--muted); display: flex; gap: 8px; }
-  .side .row.on { background: rgba(212,162,76,.18); color: var(--accent); }
-  .side .row .h { margin-left: auto; color: var(--amber); }
+  .side .row.on { background: var(--accent-soft); color: var(--accent); }
+  .side .row .h { margin-left: auto; color: var(--muted); }
   .main { padding: 22px; min-width: 0; }
   .title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 11px; margin-bottom: 3px; }
   .title h3 { font-size: 1.13rem; font-weight: 700; }
   .pill {
     border: 1px solid var(--border); border-radius: 5px;
-    padding: 1px 7px; font-size: 11px; color: var(--amber);
+    padding: 1px 7px; font-size: 11px; color: var(--muted);
   }
   .item { display: flex; gap: 9px; align-items: flex-start; padding: 5px 6px; border-radius: 6px; }
   .box {
     width: 15px; height: 15px; flex: none; margin-top: 3px;
-    border: 1.5px solid rgba(255,255,255,.3); border-radius: 3px;
+    border: 1.5px solid var(--faint); border-radius: 3px;
   }
   .box.on { background: var(--accent); border-color: var(--accent); }
   .txt { min-width: 0; flex: 1; font-size: 13.5px; }
   .txt.done { text-decoration: line-through; opacity: .45; }
   .tag {
     font-size: 11px; padding: 1px 7px; border-radius: 999px;
-    background: rgba(212,162,76,.16); color: var(--accent); white-space: nowrap;
+    background: var(--accent-soft); color: var(--accent); white-space: nowrap;
   }
-  .time { font-family: var(--mono); font-size: 11px; color: var(--amber); white-space: nowrap; }
-  .stamp { font-family: var(--mono); font-size: 10.5px; color: rgba(232,232,234,.38); white-space: nowrap; }
+  .stamp { font-family: var(--mono); font-size: 10.5px; color: var(--faint); white-space: nowrap; }
   .carried {
     font-size: 10.5px; padding: 1px 7px; border-radius: 999px;
-    background: rgba(224,169,74,.15); color: var(--amber); white-space: nowrap;
+    background: var(--sunken); color: var(--muted); white-space: nowrap;
   }
   .body {
     margin: 6px 0 0 4px; padding-left: 12px;
-    border-left: 2px solid rgba(255,255,255,.12);
+    border-left: 2px solid var(--border);
     font-size: 12.5px; color: var(--muted);
   }
   .meta { display: flex; flex-wrap: wrap; gap: 7px; align-items: baseline; }
   .push { margin-left: auto; }
 
   pre {
-    background: #0f0f11; border: 1px solid var(--border); border-radius: 9px;
+    background: var(--code); border: 1px solid var(--border); border-radius: 9px;
     padding: 16px 18px; overflow-x: auto; font-size: 12.6px; line-height: 1.62; margin: 0;
   }
-  pre .c { color: #6f6f78; }
+  pre .c { color: var(--faint); }
   pre .k { color: var(--accent); }
-  pre .s { color: #86c99b; }
-  pre .t { color: var(--amber); }
+  pre .s { color: #2f9e6b; }
+  pre .t { color: var(--accent); }
 
   table { width: 100%; border-collapse: collapse; font-size: .89rem; }
   th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); }
   th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .09em; font-weight: 700; }
   kbd {
     font-family: var(--mono); font-size: 11.5px; border: 1px solid var(--border);
-    border-radius: 4px; padding: 1px 6px; background: var(--raised); white-space: nowrap;
+    border-radius: 4px; padding: 1px 6px; background: var(--sunken); white-space: nowrap;
   }
   .scroll { overflow-x: auto; }
 
@@ -161,9 +181,11 @@
 <header>
   <div class="wrap">
     <div class="logo">
-      <svg viewBox="0 0 32 32" aria-hidden="true">
-        <rect width="32" height="32" rx="7" fill="#1c1c1f"/>
-        <path d="M8 11h16M8 16h16M8 21h10" stroke="#d4a24c" stroke-width="2.4" stroke-linecap="round"/>
+      <svg viewBox="0 0 1024 1024" aria-hidden="true">
+        <rect width="1024" height="1024" rx="228" fill="#5b5bd6"/>
+        <g stroke="#fff" stroke-width="72" stroke-linecap="round" stroke-linejoin="round" fill="none">
+          <path d="M252 332h520M252 528l84 84 152-152M560 528h212M252 724h368"/>
+        </g>
       </svg>
       <span>Nota</span>
     </div>
@@ -180,7 +202,7 @@
       <a class="btn btn-ghost" href="https://github.com/vishnu-kyatannawar/nota">Source on GitHub</a>
       <a class="btn btn-ghost" href="https://github.com/vishnu-kyatannawar/nota/releases/latest">Latest release</a>
     </div>
-    <p class="platforms">Linux and Windows · single binary · MIT licensed</p>
+    <p class="platforms">Linux and Windows · single binary · light and dark · MIT licensed</p>
   </div>
 </header>
 
@@ -189,8 +211,8 @@
     <p class="eyebrow">The daily workplan</p>
     <h2 style="margin-top:10px">Type it, don't click it</h2>
     <p class="sub">
-      Press Enter and the checkbox is already there. Tab nests. Type <code>#label</code> inline.
-      Log time as <code>hh:mm</code>. Paste code under any item.
+      Press Enter and the next checkbox is already there, focused. Arrow keys move between items.
+      Tab nests. Type <code>#label</code> inline. Paste a whole list and every line becomes an item.
     </p>
 
     <div class="app">
@@ -198,7 +220,7 @@
       <div class="panes">
         <aside class="side">
           <p class="eyebrow">Workplans</p>
-          <div class="row on"><span>2026-09-02</span><span class="h">01:20</span></div>
+          <div class="row on"><span>2026-09-02</span><span class="h">07:30</span></div>
           <div class="row"><span>2026-09-01</span><span class="h">09:00</span></div>
           <div class="row"><span>2026-08-31</span><span class="h" style="color:var(--muted)">00:00</span></div>
           <div class="row"><span>2026-08-29</span><span class="h">07:45</span></div>
@@ -214,7 +236,7 @@
 
         <div class="main">
           <div class="title">
-            <h3>2026-09-02 <span style="opacity:.35;font-weight:400">-</span> <span class="mono" style="color:var(--amber)">01:20</span></h3>
+            <h3>2026-09-02 <span style="opacity:.35;font-weight:400">–</span> <span class="mono" style="color:var(--muted)">07:30</span></h3>
             <span class="pill">work</span>
             <span class="stamp push">3 open · 1 done</span>
           </div>
@@ -233,11 +255,11 @@
             <div class="txt">
               <div class="meta">
                 <span class="done">Fix auth token expiry</span>
-                <span class="tag">#rv-api</span><span class="time">[01:20]</span>
+                <span class="tag">#rv-api</span>
                 <span class="stamp push">added 09:34 · done 11:02</span>
               </div>
               <div class="body">
-                Middleware compares <code style="color:var(--amber)">exp &lt; now</code> — off by one on the boundary second.
+                Middleware compares <code style="color:var(--muted)">exp &lt; now</code> — off by one on the boundary second.
                 <pre style="margin-top:8px"><code><span class="k">if</span> exp &lt;= now {
     <span class="k">return</span> ErrExpired
 }</code></pre>
@@ -282,7 +304,7 @@
       <div class="card">
         <h3>Hours per day</h3>
         <p>Every workplan shows the time worked — <span class="mono">2026-09-02 - 09:00</span> — sitting at
-        <span class="mono">00:00</span> on a weekend, leave day or holiday. Item logs suggest a total; you set it.</p>
+        <span class="mono">00:00</span> on a weekend, leave day or holiday. One figure per day, set by you.</p>
       </div>
       <div class="card">
         <h3>When did I add this?</h3>
@@ -311,7 +333,13 @@
       </div>
       <div class="card">
         <h3>Nested folders</h3>
-        <p>The sidebar tree is the directory tree. Nothing is hidden in a database you can't read.</p>
+        <p>The sidebar tree is the directory tree. Make folders and notes from the sidebar; rename and
+        delete them there too. Nothing is hidden in a database you can't read.</p>
+      </div>
+      <div class="card">
+        <h3>Looks like your desktop</h3>
+        <p>Light, dark, or follow the system. Opens maximised the first time, then remembers the size
+        and position you leave it at.</p>
       </div>
     </div>
   </div>
@@ -353,13 +381,13 @@
 <span class="c">---</span>
 
 - [ ] Check calendar <span class="t">#daily</span> <span class="c">&lt;!--n id:01K6M2R0 t:08:55--&gt;</span>
-- [x] Fix auth expiry <span class="t">#rv-api [01:20]</span>
+- [x] Fix auth expiry <span class="t">#rv-api</span>
       Off by one on the boundary second.
 
 - [ ] Review PR 412 <span class="c">&lt;!--n from:2026-09-01 carried:1--&gt;</span></code></pre>
         <p class="sub" style="margin-top:16px;font-size:.86rem">
-          Labels and time stay visible where you'd write them. Only ids and timestamps hide in a
-          comment markdown doesn't render. The filename stays the date — logging time never renames a file.
+          Labels stay visible where you'd write them. Only ids and timestamps hide in a comment markdown
+          doesn't render. The filename stays the date — the hours live in the frontmatter, so setting them never renames a file.
         </p>
       </div>
     </div>
@@ -374,12 +402,14 @@
       <table>
         <thead><tr><th>Key</th><th>Does</th></tr></thead>
         <tbody>
-          <tr><td><kbd>Enter</kbd></td><td>New item below, checkbox already there</td></tr>
+          <tr><td><kbd>Enter</kbd></td><td>New item below, focused and ready to type</td></tr>
+          <tr><td><kbd>↑</kbd> / <kbd>↓</kbd></td><td>Move between items</td></tr>
+          <tr><td><kbd>Backspace</kbd> on an empty item</td><td>Delete it and move up</td></tr>
           <tr><td><kbd>Tab</kbd> / <kbd>Shift+Tab</kbd></td><td>Indent or outdent to nest</td></tr>
           <tr><td><kbd>Ctrl+Enter</kbd></td><td>Tick it done, stamping the time</td></tr>
-          <tr><td><kbd>Ctrl+T</kbd></td><td>Log time on the item, as <span class="mono">hh:mm</span></td></tr>
           <tr><td><kbd>Ctrl+Shift+N</kbd></td><td>Open the item's notes for prose or code</td></tr>
           <tr><td><kbd>Ctrl+E</kbd></td><td>Swap the whole note to raw markdown and back</td></tr>
+          <tr><td>Paste several lines</td><td>One item per line — <span class="mono">- [x]</span> lines arrive already ticked</td></tr>
         </tbody>
       </table>
     </div>
