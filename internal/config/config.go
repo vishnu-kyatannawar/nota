@@ -26,6 +26,48 @@ const (
 	ThemeDark   = "dark"
 )
 
+// Fonts are the faces the interface, the notes area and code use, by id, plus a
+// size step. The ids name faces bundled with the application (see the frontend
+// catalogue), or "system" for the platform default.
+type Fonts struct {
+	UI    string `json:"ui"`
+	Notes string `json:"notes"`
+	Code  string `json:"code"`
+	Size  string `json:"size"`
+}
+
+// Which ids each slot accepts. Kept in one place so a hand-edited settings file
+// cannot leave the interface with a face that was never bundled.
+var (
+	uiFonts    = map[string]bool{"system": true, "inter": true, "manrope": true, "ibm-plex-sans": true}
+	notesFonts = map[string]bool{"system": true, "inter": true, "lora": true, "source-serif-4": true}
+	codeFonts  = map[string]bool{"system": true, "jetbrains-mono": true}
+	fontSizes  = map[string]bool{"s": true, "m": true, "l": true}
+)
+
+// DefaultFonts is the first-launch typography.
+func DefaultFonts() Fonts {
+	return Fonts{UI: "inter", Notes: "inter", Code: "jetbrains-mono", Size: "m"}
+}
+
+// normalised returns the fonts with every unknown value replaced by its default.
+func (f Fonts) normalised() Fonts {
+	d := DefaultFonts()
+	if !uiFonts[f.UI] {
+		f.UI = d.UI
+	}
+	if !notesFonts[f.Notes] {
+		f.Notes = d.Notes
+	}
+	if !codeFonts[f.Code] {
+		f.Code = d.Code
+	}
+	if !fontSizes[f.Size] {
+		f.Size = d.Size
+	}
+	return f
+}
+
 // The smallest window the layout works at; also the floor for a saved window.
 const (
 	MinWindowWidth  = 720
@@ -74,6 +116,8 @@ type Settings struct {
 	Theme string `json:"theme"`
 	// Window remembers where the window was left; see Window.Valid.
 	Window Window `json:"window"`
+	// Fonts is the chosen typography; see Fonts.
+	Fonts Fonts `json:"fonts"`
 }
 
 // DefaultSettings returns the configuration used on a first launch.
@@ -83,6 +127,7 @@ func DefaultSettings() Settings {
 		WorkplanFolder:   DefaultWorkplanFolder,
 		CreateOnWeekends: true,
 		Theme:            ThemeSystem,
+		Fonts:            DefaultFonts(),
 	}
 }
 
@@ -160,6 +205,7 @@ func Load(path string) (Settings, error) {
 		// A hand-edited or future value must not leave the UI without a theme.
 		s.Theme = ThemeSystem
 	}
+	s.Fonts = s.Fonts.normalised()
 	return s, nil
 }
 

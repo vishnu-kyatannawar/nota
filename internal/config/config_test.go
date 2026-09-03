@@ -277,3 +277,47 @@ func TestLoadV1SettingsFile(t *testing.T) {
 		t.Errorf("a v1 file must not yield a valid saved window, got %+v", got.Window)
 	}
 }
+
+func TestDefaultFonts(t *testing.T) {
+	setHome(t, t.TempDir())
+	got := DefaultSettings().Fonts
+	want := Fonts{UI: "inter", Notes: "inter", Code: "jetbrains-mono", Size: "m"}
+	if got != want {
+		t.Errorf("Fonts = %+v, want %+v", got, want)
+	}
+}
+
+func TestLoadNormalisesUnknownFonts(t *testing.T) {
+	home := t.TempDir()
+	setHome(t, home)
+	path := filepath.Join(home, "settings.json")
+	if err := os.WriteFile(path, []byte(`{"vaultPath":"/srv/notes","fonts":{"ui":"comic-sans","notes":"lora","code":"","size":"xl"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := Fonts{UI: "inter", Notes: "lora", Code: "jetbrains-mono", Size: "m"}
+	if got.Fonts != want {
+		t.Errorf("Fonts = %+v, want %+v", got.Fonts, want)
+	}
+}
+
+func TestFontsRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	want := DefaultSettings()
+	want.VaultPath = filepath.Join(dir, "Notes")
+	want.Fonts = Fonts{UI: "manrope", Notes: "source-serif-4", Code: "system", Size: "l"}
+	if err := Save(path, want); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Fonts != want.Fonts {
+		t.Errorf("Fonts = %+v, want %+v", got.Fonts, want.Fonts)
+	}
+}
