@@ -93,6 +93,53 @@ func (w *WorkplanService) SaveItems(path string, items []ItemInput) ([]mdnote.It
 	return saved, nil
 }
 
+// MoveItems takes the named items — each with anything nested under it — out
+// of one note and appends them to another. An empty destination means today's
+// workplan, created if needed. Ids, creation times, carry counters and bodies
+// travel untouched, so an item moved in from a list still says when it was
+// first written down. Both notes are saved and reindexed under one lock.
+func (w *WorkplanService) MoveItems(from string, ids []string, to string) (string, error) {
+	w.core.mu.Lock()
+	defer w.core.mu.Unlock()
+
+	if to == "" {
+		path, err := w.core.plans.Ensure(time.Now())
+		if err != nil {
+			return "", err
+		}
+		if path == "" {
+			return "", fmt.Errorf("no workplan for today: weekend notes are switched off")
+		}
+		to = path
+	}
+	if to == from {
+		return "", fmt.Errorf("items are already in %s", to)
+	}
+
+	source, err := w.core.vault.ReadNote(from)
+	if err != nil {
+		return "", err
+	}
+	dest, err := w.core.vault.ReadNote(to)
+	if err != nil {
+		return "", err
+	}
+
+	moved := source.TakeItems(ids)
+	if len(moved) == 0 {
+		return to, nil
+	}
+	dest.AppendItems(moved)
+
+	if err := w.core.saveNote(to, dest); err != nil {
+		return "", err
+	}
+	if err := w.core.saveNote(from, source); err != nil {
+		return "", err
+	}
+	return to, nil
+}
+
 // SetHours records the hours worked on a day, in hh:mm.
 func (w *WorkplanService) SetHours(path, hours string) error {
 	if _, ok := mdnote.ParseDuration(hours); !ok {

@@ -24,6 +24,9 @@ import (
 	"github.com/vishnu-kyatannawar/nota/internal/workplan"
 )
 
+// TrashRetention is how long a deleted note or folder stays recoverable.
+const TrashRetention = 30 * 24 * time.Hour
+
 // Core is the shared state every service works through.
 type Core struct {
 	mu       sync.RWMutex
@@ -59,6 +62,9 @@ func NewCore(version string, settings config.Settings) (*Core, error) {
 	if err := idx.Rebuild(v); err != nil {
 		return nil, err
 	}
+	// Trash is kept for a month. A purge failure is not worth refusing to
+	// launch over; the entries simply stay until the next start.
+	_ = v.PurgeTrash(TrashRetention)
 	return c, nil
 }
 

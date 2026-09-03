@@ -42,6 +42,20 @@ export function Delete(path: string): $CancellablePromise<void> {
 }
 
 /**
+ * DeleteForever removes one trash entry permanently.
+ */
+export function DeleteForever(id: string): $CancellablePromise<void> {
+    return $Call.ByID(1781375193, id);
+}
+
+/**
+ * EmptyTrash removes every trash entry permanently.
+ */
+export function EmptyTrash(): $CancellablePromise<void> {
+    return $Call.ByID(640602140);
+}
+
+/**
  * Get reads one note.
  */
 export function Get(path: string): $CancellablePromise<$models.Note | null> {
@@ -53,6 +67,13 @@ export function Get(path: string): $CancellablePromise<$models.Note | null> {
  */
 export function GetRaw(path: string): $CancellablePromise<string> {
     return $Call.ByID(4124668463, path);
+}
+
+/**
+ * ListTrash returns the recoverable deleted notes and folders, newest first.
+ */
+export function ListTrash(): $CancellablePromise<vault$0.TrashEntry[] | null> {
+    return $Call.ByID(2068799449);
 }
 
 /**
@@ -71,10 +92,42 @@ export function Rename($from: string, to: string): $CancellablePromise<void> {
 }
 
 /**
+ * Restore brings a trashed note or folder back and returns where it landed.
+ */
+export function Restore(id: string): $CancellablePromise<string> {
+    return $Call.ByID(62200425, id);
+}
+
+/**
+ * SaveBody replaces the free-form markdown below the items and nothing else:
+ * the frontmatter and every item line are written back exactly as they were.
+ * An empty body removes the section rather than leaving a blank stub.
+ */
+export function SaveBody(path: string, body: string): $CancellablePromise<void> {
+    return $Call.ByID(1514606156, path, body);
+}
+
+/**
  * SaveRaw replaces a note's markdown wholesale, which is what the raw editor does.
  */
 export function SaveRaw(path: string, content: string): $CancellablePromise<void> {
     return $Call.ByID(3320378662, path, content);
+}
+
+/**
+ * SetLabels replaces a note's own labels (the frontmatter ones, as opposed to
+ * the #labels on individual items).
+ */
+export function SetLabels(path: string, labels: string[] | null): $CancellablePromise<void> {
+    return $Call.ByID(886785392, path, labels);
+}
+
+/**
+ * SetLayout chooses which sections a note shows. Workplans are always items
+ * then notes, so they refuse a layout rather than silently ignoring it.
+ */
+export function SetLayout(path: string, layout: string): $CancellablePromise<void> {
+    return $Call.ByID(3780901249, path, layout);
 }
 
 /**

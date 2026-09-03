@@ -49,6 +49,7 @@ export interface Note {
     "date": string;
     "hours": string;
     "dayType": string;
+    "layout": string;
     "labels": string[] | null;
     "items": NoteItem[] | null;
     "body": string;

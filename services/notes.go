@@ -26,6 +26,7 @@ type Note struct {
 	Date    string     `json:"date"`
 	Hours   string     `json:"hours"`
 	DayType string     `json:"dayType"`
+	Layout  string     `json:"layout"`
 	Labels  []string   `json:"labels"`
 	Items   []NoteItem `json:"items"`
 	Body    string     `json:"body"`
@@ -161,6 +162,95 @@ func (n *NotesService) Delete(path string) error {
 	return n.core.index.Rebuild(n.core.vault)
 }
 
+// SaveBody replaces the free-form markdown below the items and nothing else:
+// the frontmatter and every item line are written back exactly as they were.
+// An empty body removes the section rather than leaving a blank stub.
+func (n *NotesService) SaveBody(path, body string) error {
+	body = strings.TrimRight(body, "\n")
+	if body != "" {
+		body += "\n"
+	}
+	return n.core.mutate(path, func(note *mdnote.Note) error {
+		note.Body = body
+		return nil
+	})
+}
+
+// SetLayout chooses which sections a note shows. Workplans are always items
+// then notes, so they refuse a layout rather than silently ignoring it.
+func (n *NotesService) SetLayout(path, layout string) error {
+	switch layout {
+	case mdnote.LayoutItems, mdnote.LayoutNotes, mdnote.LayoutBoth:
+	default:
+		return fmt.Errorf("unknown layout %q", layout)
+	}
+	return n.core.mutate(path, func(note *mdnote.Note) error {
+		if note.Type == "workplan" {
+			return fmt.Errorf("a workplan always shows items and notes")
+		}
+		if layout == mdnote.LayoutBoth {
+			note.Layout = "" // the default; keep the file minimal
+		} else {
+			note.Layout = layout
+		}
+		return nil
+	})
+}
+
+// SetLabels replaces a note's own labels (the frontmatter ones, as opposed to
+// the #labels on individual items).
+func (n *NotesService) SetLabels(path string, labels []string) error {
+	clean := make([]string, 0, len(labels))
+	seen := map[string]bool{}
+	for _, l := range labels {
+		l = strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(l), "#"))
+		l = strings.Join(strings.Fields(l), "-")
+		if l == "" || seen[l] {
+			continue
+		}
+		seen[l] = true
+		clean = append(clean, l)
+	}
+	return n.core.mutate(path, func(note *mdnote.Note) error {
+		note.Labels = clean
+		return nil
+	})
+}
+
+// ListTrash returns the recoverable deleted notes and folders, newest first.
+func (n *NotesService) ListTrash() ([]vault.TrashEntry, error) {
+	entries, err := n.core.vault.ListTrash()
+	if err != nil {
+		return nil, err
+	}
+	if entries == nil {
+		entries = []vault.TrashEntry{}
+	}
+	return entries, nil
+}
+
+// Restore brings a trashed note or folder back and returns where it landed.
+func (n *NotesService) Restore(id string) (string, error) {
+	n.core.mu.Lock()
+	defer n.core.mu.Unlock()
+
+	path, err := n.core.vault.Restore(id)
+	if err != nil {
+		return "", err
+	}
+	// A restored folder brings back paths only the walker knows about.
+	if err := n.core.index.Rebuild(n.core.vault); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+// DeleteForever removes one trash entry permanently.
+func (n *NotesService) DeleteForever(id string) error { return n.core.vault.DeleteForever(id) }
+
+// EmptyTrash removes every trash entry permanently.
+func (n *NotesService) EmptyTrash() error { return n.core.vault.EmptyTrash() }
+
 // Reindex rebuilds the index from the notes on disk. It backs the file watcher
 // and the "something changed underneath us" recovery path.
 func (n *NotesService) Reindex() error {
@@ -177,6 +267,7 @@ func toNote(path string, n *mdnote.Note) *Note {
 		Date:    n.Date,
 		Hours:   n.Hours,
 		DayType: n.DayType,
+		Layout:  n.EffectiveLayout(),
 		Labels:  n.Labels,
 		Body:    n.Body,
 		Title:   titleFor(path, n),

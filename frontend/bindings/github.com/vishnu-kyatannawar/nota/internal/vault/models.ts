@@ -18,3 +18,21 @@ export interface Node {
     "isFolder": boolean;
     "children"?: (Node | null)[] | null;
 }
+
+/**
+ * TrashEntry is one deleted note or folder, recoverable until purged.
+ */
+export interface TrashEntry {
+    /**
+     * ID is the entry's directory name under .nota/trash.
+     */
+    "id": string;
+
+    /**
+     * Path is where the note or folder lived, vault-relative.
+     */
+    "path": string;
+    "name": string;
+    "isFolder": boolean;
+    "deletedAt": string;
+}

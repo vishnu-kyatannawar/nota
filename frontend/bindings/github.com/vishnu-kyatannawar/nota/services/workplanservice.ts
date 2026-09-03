@@ -42,6 +42,17 @@ export function List(): $CancellablePromise<index$0.Workplan[] | null> {
 }
 
 /**
+ * MoveItems takes the named items — each with anything nested under it — out
+ * of one note and appends them to another. An empty destination means today's
+ * workplan, created if needed. Ids, creation times, carry counters and bodies
+ * travel untouched, so an item moved in from a list still says when it was
+ * first written down. Both notes are saved and reindexed under one lock.
+ */
+export function MoveItems($from: string, ids: string[] | null, to: string): $CancellablePromise<string> {
+    return $Call.ByID(690008623, $from, ids, to);
+}
+
+/**
  * SaveItems replaces a note's action items in one write. This is the only way
  * the editor changes items: it edits a local copy and sends the whole list, so
  * keyboard navigation and multi-line paste never wait on a round trip. Items
