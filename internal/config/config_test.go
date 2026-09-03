@@ -3,12 +3,25 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
+// setHome points os.UserHomeDir at dir for the duration of the test. Go reads
+// USERPROFILE on Windows and HOME everywhere else, so the test has to set the
+// one the platform actually consults rather than assuming HOME.
+func setHome(t *testing.T, dir string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Setenv("USERPROFILE", dir)
+		return
+	}
+	t.Setenv("HOME", dir)
+}
+
 func TestDefaultSettings(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 
 	got := DefaultSettings()
 
@@ -25,7 +38,7 @@ func TestDefaultSettings(t *testing.T) {
 
 func TestExpandHome(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 
 	tests := []struct {
 		name string
@@ -51,7 +64,7 @@ func TestExpandHome(t *testing.T) {
 
 func TestLoadMissingFileReturnsDefaults(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 
 	got, err := Load(filepath.Join(home, "does-not-exist.json"))
 	if err != nil {
@@ -86,7 +99,7 @@ func TestSaveThenLoadRoundTrips(t *testing.T) {
 
 func TestLoadExpandsTildeInStoredPath(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	path := filepath.Join(home, "settings.json")
 
 	if err := os.WriteFile(path, []byte(`{"vaultPath":"~/Elsewhere"}`), 0o600); err != nil {
@@ -104,7 +117,7 @@ func TestLoadExpandsTildeInStoredPath(t *testing.T) {
 
 func TestLoadFillsMissingFieldsFromDefaults(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	path := filepath.Join(home, "settings.json")
 
 	// Only vaultPath is set; the rest must fall back rather than land as zero values.
