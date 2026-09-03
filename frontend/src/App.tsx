@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Events } from "@wailsio/runtime";
-import type { Hit, Info, Label, Node, Workplan } from "./lib/api";
+import type { Hit, Info, Label, Node, TrashEntry, Workplan } from "./lib/api";
 import { api } from "./lib/api";
 import { applyTheme, isTheme, resolvedTheme, THEMES, type Theme } from "./lib/theme";
 import { Sidebar } from "./components/Sidebar";
@@ -16,6 +16,8 @@ export default function App() {
   const [tree, setTree] = useState<Node | null>(null);
   const [workplans, setWorkplans] = useState<Workplan[]>([]);
   const [labels, setLabels] = useState<Label[]>([]);
+  const [trash, setTrash] = useState<TrashEntry[]>([]);
+  const [todayPath, setTodayPath] = useState<string | null>(null);
   const [weekHours, setWeekHours] = useState("00:00");
   const [current, setCurrent] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
@@ -24,17 +26,18 @@ export default function App() {
   const [renaming, setRenaming] = useState<string | null>(null);
   const [about, setAbout] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [confirm, setConfirm] = useState<{ node: Node } | null>(null);
+  const [confirm, setConfirm] = useState<{ kind: "delete"; node: Node } | { kind: "forever"; entry: TrashEntry } | { kind: "empty" } | null>(null);
 
   const fail = useCallback((m: string) => setError(m), []);
 
   const refreshShell = useCallback(async () => {
     try {
-      const [t, w, l, h] = await Promise.all([api.tree(), api.workplans(), api.labels(), api.hoursThisWeek()]);
+      const [t, w, l, h, tr] = await Promise.all([api.tree(), api.workplans(), api.labels(), api.hoursThisWeek(), api.listTrash()]);
       setTree(t);
       setWorkplans(w);
       setLabels(l);
       setWeekHours(h.hours);
+      setTrash(tr);
     } catch (e) {
       fail(String(e));
     }
@@ -71,7 +74,10 @@ export default function App() {
         setDark(resolvedTheme(t) === "dark");
         const today = await api.ensureToday();
         await refreshShell();
-        if (today) setCurrent(today);
+        if (today) {
+          setTodayPath(today);
+          setCurrent(today);
+        }
       } catch (e) {
         fail(String(e));
       }
@@ -87,7 +93,10 @@ export default function App() {
     });
     Events.On("workplan:rolled", (ev: { data: string }) => {
       void refreshShell();
-      if (ev?.data) open(ev.data);
+      if (ev?.data) {
+        setTodayPath(ev.data);
+        open(ev.data);
+      }
     });
     return () => {
       Events.Off("note:changed");
@@ -166,6 +175,36 @@ export default function App() {
     }
   }, [current, fail, refreshShell]);
 
+  const restore = useCallback(async (id: string) => {
+    try {
+      const path = await api.restore(id);
+      await refreshShell();
+      if (path.endsWith(".md")) open(path);
+    } catch (e) {
+      fail(String(e));
+    }
+  }, [fail, open, refreshShell]);
+
+  const deleteForever = useCallback(async (entry: TrashEntry) => {
+    setConfirm(null);
+    try {
+      await api.deleteForever(entry.id);
+      await refreshShell();
+    } catch (e) {
+      fail(String(e));
+    }
+  }, [fail, refreshShell]);
+
+  const emptyTrash = useCallback(async () => {
+    setConfirm(null);
+    try {
+      await api.emptyTrash();
+      await refreshShell();
+    } catch (e) {
+      fail(String(e));
+    }
+  }, [fail, refreshShell]);
+
   const cycleTheme = () => chooseTheme(THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]);
 
   return (
@@ -174,6 +213,10 @@ export default function App() {
         tree={tree}
         workplans={workplans}
         labels={labels}
+        trash={trash}
+        onRestore={(id) => void restore(id)}
+        onDeleteForever={(entry) => setConfirm({ kind: "forever", entry })}
+        onEmptyTrash={() => setConfirm({ kind: "empty" })}
         weekHours={weekHours}
         current={current ?? ""}
         renaming={renaming}
@@ -187,7 +230,7 @@ export default function App() {
         onNewNote={(f) => void newNote(f)}
         onNewFolder={(f) => void newFolder(f)}
         onRename={(from, name) => void rename(from, name)}
-        onDelete={(node) => setConfirm({ node })}
+        onDelete={(node) => setConfirm({ kind: "delete", node })}
         onCycleTheme={cycleTheme}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenAbout={() => setAbout(true)}
@@ -207,7 +250,15 @@ export default function App() {
           </div>
         </main>
       ) : current ? (
-        <NoteView path={current} dark={dark} reloadToken={reloadToken} onShellChanged={() => void refreshShell()} onError={fail} />
+        <NoteView
+          path={current}
+          dark={dark}
+          reloadToken={reloadToken}
+          allLabels={labels.map((l) => l.name)}
+          todayPath={todayPath}
+          onShellChanged={() => void refreshShell()}
+          onError={fail}
+        />
       ) : (
         <main className="flex min-w-0 flex-1 items-center justify-center p-6">
           <p className="text-sm text-ink-faint">Pick a note, or press ＋ to make one.</p>
@@ -225,15 +276,26 @@ export default function App() {
       />
       <ConfirmDialog
         open={confirm !== null}
-        title={confirm?.node.isFolder ? "Delete folder?" : "Delete note?"}
-        message={
-          confirm?.node.isFolder
-            ? `"${confirm.node.path}" and everything inside it will be deleted. This cannot be undone.`
-            : `"${confirm?.node.path}" will be deleted. This cannot be undone.`
+        title={
+          confirm?.kind === "delete" ? (confirm.node.isFolder ? "Move folder to trash?" : "Move note to trash?")
+          : confirm?.kind === "forever" ? "Delete forever?"
+          : "Empty the trash?"
         }
-        confirmLabel="Delete"
+        message={
+          confirm?.kind === "delete"
+            ? `"${confirm.node.path}"${confirm.node.isFolder ? " and everything inside it" : ""} will move to Trash, where it is kept for 30 days and can be restored.`
+            : confirm?.kind === "forever"
+              ? `"${confirm.entry.path}" will be deleted permanently. This cannot be undone.`
+              : `Everything in the trash (${trash.length}) will be deleted permanently. This cannot be undone.`
+        }
+        confirmLabel={confirm?.kind === "delete" ? "Move to trash" : "Delete forever"}
         danger
-        onConfirm={() => confirm && void remove(confirm.node)}
+        onConfirm={() => {
+          if (!confirm) return;
+          if (confirm.kind === "delete") void remove(confirm.node);
+          else if (confirm.kind === "forever") void deleteForever(confirm.entry);
+          else void emptyTrash();
+        }}
         onCancel={() => setConfirm(null)}
       />
 

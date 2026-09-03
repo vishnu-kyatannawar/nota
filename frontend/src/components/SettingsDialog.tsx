@@ -61,7 +61,7 @@ export function SettingsDialog({ open, onClose, theme, onTheme, onError, onVault
       });
       const bundle = Array.isArray(picked) ? picked[0] : picked;
       if (!bundle) return;
-      await api.restore(bundle);
+      await api.restoreBackup(bundle);
       setNote("Restored. Notes and settings from the backup are now in the vault.");
       onVaultChanged();
     } catch (e) {

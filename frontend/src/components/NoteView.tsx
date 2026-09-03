@@ -2,39 +2,51 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import type { Note } from "../lib/api";
 import { api, HHMM } from "../lib/api";
 import { blankItem, fromServer, initialState, mergeSaved, reducer, toInputs } from "../lib/items";
+import { cleanLabel } from "../lib/labels";
 import { CodeEditor } from "./CodeEditor";
 import { ItemRow } from "./ItemRow";
+import { NotesEditor } from "./NotesEditor";
 
 type Props = {
   path: string;
   dark: boolean;
   /** Bumped by the parent when the file changed on disk. */
   reloadToken: number;
+  allLabels: string[];
+  todayPath: string | null;
   onShellChanged: () => void;
   onError: (message: string) => void;
 };
 
 const DAY_TYPES = ["work", "weekend", "leave", "holiday"] as const;
-const SAVE_DELAY = 400;
+const LAYOUTS = ["items", "notes", "both"] as const;
+const ITEM_SAVE_DELAY = 400;
+const BODY_SAVE_DELAY = 600;
 
-export function NoteView({ path, dark, reloadToken, onShellChanged, onError }: Props) {
+export function NoteView({ path, dark, reloadToken, allLabels, todayPath, onShellChanged, onError }: Props) {
   const [note, setNote] = useState<Note | null>(null);
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [body, setBody] = useState("");
   const [raw, setRaw] = useState<string | null>(null);
   const [saving, setSaving] = useState<"idle" | "saving" | "saved">("idle");
   const [editingHours, setEditingHours] = useState(false);
   const [hoursDraft, setHoursDraft] = useState("");
+  const [labelDraft, setLabelDraft] = useState("");
 
-  // Refs let the save and reload logic see the latest state without being
+  // Refs let the save and reload logic read the latest state without being
   // re-created on every keystroke.
   const stateRef = useRef(state);
   useEffect(() => {
     stateRef.current = state;
   });
+  const bodyRef = useRef({ value: "", dirty: false });
   const pathRef = useRef(path);
   const inFlight = useRef(false);
   const reloadPending = useRef(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const itemTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bodyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const anyDirty = () => stateRef.current.dirty || bodyRef.current.dirty || inFlight.current;
 
   const load = useCallback(
     (p: string) =>
@@ -44,16 +56,26 @@ export function NoteView({ path, dark, reloadToken, onShellChanged, onError }: P
           if (pathRef.current !== p) return;
           setNote(n);
           const items = fromServer(n.items);
-          // An empty note shows one blank row to type on; it is not an item
-          // until it has text, so this does not mark the note dirty.
-          dispatch({ type: "replaceAll", items: items.length ? items : [blankItem()] });
-          if (items.length === 0) dispatch({ type: "focus", index: 0 });
+          const showsItems = n.type === "workplan" || n.layout !== "notes";
+          // An empty items section shows one blank row to type on; it is not
+          // an item until it has text, so this does not mark the note dirty.
+          dispatch({ type: "replaceAll", items: items.length || !showsItems ? items : [blankItem()] });
+          if (items.length === 0 && showsItems) dispatch({ type: "focus", index: 0 });
+          setBody(n.body);
+          bodyRef.current = { value: n.body, dirty: false };
         })
         .catch((e) => onError(String(e))),
     [onError],
   );
 
-  const save = useCallback(async (): Promise<void> => {
+  const afterSave = useCallback(() => {
+    if (reloadPending.current && !anyDirty()) {
+      reloadPending.current = false;
+      void load(pathRef.current);
+    }
+  }, [load]);
+
+  const saveItems = useCallback(async (): Promise<void> => {
     const s = stateRef.current;
     const p = pathRef.current;
     if (!s.dirty || inFlight.current) return;
@@ -69,8 +91,6 @@ export function NoteView({ path, dark, reloadToken, onShellChanged, onError }: P
         saved.map((it) => ({ id: it.ID, createdAt: it.CreatedAt, doneAt: it.DoneAt, from: it.From, carried: it.Carried, recurring: it.Recurring })),
         kept,
       );
-      // If the user kept typing during the round trip the note is still dirty
-      // and another save will follow; otherwise it is clean now.
       dispatch({ type: "replaceAll", items: merged, dirty: latest.items !== s.items });
       setSaving("saved");
       onShellChanged();
@@ -79,50 +99,75 @@ export function NoteView({ path, dark, reloadToken, onShellChanged, onError }: P
       setSaving("idle");
     } finally {
       inFlight.current = false;
-      if (reloadPending.current && !stateRef.current.dirty) {
-        reloadPending.current = false;
-        void load(pathRef.current);
-      }
+      afterSave();
     }
-  }, [load, onError, onShellChanged]);
+  }, [afterSave, onError, onShellChanged]);
+
+  const saveBody = useCallback(async (): Promise<void> => {
+    const b = bodyRef.current;
+    const p = pathRef.current;
+    if (!b.dirty) return;
+    bodyRef.current = { ...b, dirty: false };
+    setSaving("saving");
+    try {
+      await api.saveBody(p, b.value);
+      if (pathRef.current !== p) return;
+      setSaving("saved");
+      onShellChanged();
+    } catch (e) {
+      bodyRef.current.dirty = true;
+      onError(String(e));
+      setSaving("idle");
+    } finally {
+      afterSave();
+    }
+  }, [afterSave, onError, onShellChanged]);
 
   // Switching notes flushes whatever is unsaved on the old one, then loads.
   useEffect(() => {
     const previous = pathRef.current;
-    if (previous !== path && stateRef.current.dirty) {
-      const s = stateRef.current;
-      const { inputs } = toInputs(s.items);
-      void api.saveItems(previous, inputs).then(onShellChanged).catch((e) => onError(String(e)));
+    if (previous !== path) {
+      if (stateRef.current.dirty) {
+        const { inputs } = toInputs(stateRef.current.items);
+        void api.saveItems(previous, inputs).then(onShellChanged).catch((e) => onError(String(e)));
+      }
+      if (bodyRef.current.dirty) {
+        void api.saveBody(previous, bodyRef.current.value).then(onShellChanged).catch((e) => onError(String(e)));
+        bodyRef.current.dirty = false;
+      }
     }
     pathRef.current = path;
     void load(path);
   }, [path, load, onError, onShellChanged]);
 
-  // Switching notes drops the raw-mode buffer and any half-edited hours field,
-  // so neither leaks from one note into the next. Adjusting state during render
-  // is React's own pattern for this.
   const [lastPath, setLastPath] = useState(path);
   if (path !== lastPath) {
     setLastPath(path);
     setRaw(null);
     setEditingHours(false);
+    setLabelDraft("");
   }
 
-  // Debounced save while typing.
   useEffect(() => {
     if (!state.dirty) return;
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => void save(), SAVE_DELAY);
+    if (itemTimer.current) clearTimeout(itemTimer.current);
+    itemTimer.current = setTimeout(() => void saveItems(), ITEM_SAVE_DELAY);
     return () => {
-      if (timer.current) clearTimeout(timer.current);
+      if (itemTimer.current) clearTimeout(itemTimer.current);
     };
-  }, [state, save]);
+  }, [state, saveItems]);
 
-  // A change on disk is adopted only when nothing local is unsaved, so an
-  // external edit can never clobber a word mid-typing.
+  const onBodyChange = (markdown: string) => {
+    setBody(markdown);
+    bodyRef.current = { value: markdown, dirty: true };
+    if (bodyTimer.current) clearTimeout(bodyTimer.current);
+    bodyTimer.current = setTimeout(() => void saveBody(), BODY_SAVE_DELAY);
+  };
+
+  // A change on disk is adopted only when nothing local is unsaved.
   useEffect(() => {
     if (reloadToken === 0) return;
-    if (stateRef.current.dirty || inFlight.current) {
+    if (anyDirty()) {
       reloadPending.current = true;
       return;
     }
@@ -148,8 +193,22 @@ export function NoteView({ path, dark, reloadToken, onShellChanged, onError }: P
   if (!note) return <main className="flex-1" />;
 
   const isWorkplan = note.type === "workplan";
+  const layout = isWorkplan ? "both" : note.layout;
+  const showItems = layout !== "notes";
+  const showNotes = layout !== "items";
+  const isToday = todayPath === path;
   const open = state.items.filter((i) => !i.done && i.text.trim() !== "").length;
   const done = state.items.filter((i) => i.done).length;
+
+  const run = async (fn: () => Promise<unknown>, then?: () => void) => {
+    try {
+      await fn();
+      then?.();
+      onShellChanged();
+    } catch (e) {
+      onError(String(e));
+    }
+  };
 
   const commitHours = async () => {
     const value = hoursDraft.trim();
@@ -158,43 +217,46 @@ export function NoteView({ path, dark, reloadToken, onShellChanged, onError }: P
       onError(`"${value}" is not hh:mm — for example 07:30`);
       return;
     }
-    try {
-      await api.setHours(path, value);
-      setNote({ ...note, hours: value, title: `${note.date} - ${value}` });
-      onShellChanged();
-    } catch (e) {
-      onError(String(e));
-    }
+    await run(() => api.setHours(path, value), () => setNote({ ...note, hours: value, title: `${note.date} - ${value}` }));
   };
 
-  const setDayType = async (dayType: string) => {
-    try {
-      await api.setDayType(path, dayType);
-      setNote({ ...note, dayType });
-      onShellChanged();
-    } catch (e) {
-      onError(String(e));
-    }
+  const setLayout = (next: (typeof LAYOUTS)[number]) =>
+    run(() => api.setLayout(path, next), () => {
+      setNote({ ...note, layout: next });
+      if (next !== "notes" && state.items.length === 0) {
+        dispatch({ type: "replaceAll", items: [blankItem()] });
+        dispatch({ type: "focus", index: 0 });
+      }
+    });
+
+  const setLabels = (labels: string[]) => run(() => api.setLabels(path, labels), () => setNote({ ...note, labels }));
+
+  const moveToToday = async (indexes: number[]) => {
+    await saveItems(); // new rows need their ids minted first
+    const ids = indexes.map((i) => stateRef.current.items[i]?.id).filter((id): id is string => Boolean(id));
+    if (ids.length === 0) return;
+    await run(() => api.moveItems(path, ids, ""), () => void load(path));
   };
 
   if (raw !== null) {
     return (
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <Header note={note} subtitle="Markdown source · Ctrl+E to return" />
+        <div className="border-b border-border px-8 py-3">
+          <h1 className="text-[15px] font-semibold">{note.title}</h1>
+          <p className="text-xs text-ink-faint">Markdown source · Ctrl+E to return</p>
+        </div>
         <div className="min-h-0 flex-1 overflow-auto px-8 pb-4">
           <CodeEditor value={raw} autoFocus minHeight="24rem" dark={dark} onChange={setRaw} onExit={() => setRaw(null)} />
         </div>
         <div className="flex gap-2 border-t border-border px-8 py-3">
           <button
             type="button"
-            onClick={() => void api.saveRaw(path, raw).then(() => { setRaw(null); void load(path); onShellChanged(); }).catch((e) => onError(String(e)))}
+            onClick={() => void run(() => api.saveRaw(path, raw), () => { setRaw(null); void load(path); })}
             className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink hover:opacity-90"
           >
             Save
           </button>
-          <button type="button" onClick={() => setRaw(null)} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-raised">
-            Cancel
-          </button>
+          <button type="button" onClick={() => setRaw(null)} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-raised">Cancel</button>
         </div>
       </main>
     );
@@ -203,10 +265,9 @@ export function NoteView({ path, dark, reloadToken, onShellChanged, onError }: P
   return (
     <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
       <div className="flex flex-wrap items-center gap-3 border-b border-border px-8 py-3">
-        <h1 className="text-[15px] font-semibold tracking-tight">
-          {isWorkplan ? note.date : note.title}
-        </h1>
-        {isWorkplan && (
+        <h1 className="text-[15px] font-semibold tracking-tight">{isWorkplan ? note.date : note.title}</h1>
+
+        {isWorkplan ? (
           <>
             <span className="text-ink-faint">–</span>
             {editingHours ? (
@@ -215,10 +276,7 @@ export function NoteView({ path, dark, reloadToken, onShellChanged, onError }: P
                 value={hoursDraft}
                 onChange={(e) => setHoursDraft(e.target.value)}
                 onBlur={() => void commitHours()}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") void commitHours();
-                  if (e.key === "Escape") setEditingHours(false);
-                }}
+                onKeyDown={(e) => { if (e.key === "Enter") void commitHours(); if (e.key === "Escape") setEditingHours(false); }}
                 placeholder="hh:mm"
                 aria-label="Hours worked today"
                 className="w-16 rounded-md border border-accent bg-surface-raised px-2 py-0.5 font-mono text-sm outline-none"
@@ -235,16 +293,32 @@ export function NoteView({ path, dark, reloadToken, onShellChanged, onError }: P
             )}
             <select
               value={note.dayType || "work"}
-              onChange={(e) => void setDayType(e.target.value)}
+              onChange={(e) => void run(() => api.setDayType(path, e.target.value), () => setNote({ ...note, dayType: e.target.value }))}
               aria-label="Day type"
               className="rounded-md border border-border bg-surface-raised px-1.5 py-0.5 text-xs text-ink-muted"
             >
               {DAY_TYPES.map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
           </>
+        ) : (
+          <div role="radiogroup" aria-label="Layout" className="flex rounded-md border border-border p-0.5 text-[12px]">
+            {LAYOUTS.map((l) => (
+              <button
+                key={l}
+                type="button"
+                role="radio"
+                aria-checked={layout === l}
+                onClick={() => void setLayout(l)}
+                className={`rounded px-2 py-0.5 capitalize ${layout === l ? "bg-accent-soft text-accent" : "text-ink-muted hover:text-ink"}`}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
         )}
+
         <span className="ml-auto flex items-center gap-3 text-xs text-ink-muted">
-          <span>{open} open · {done} done</span>
+          {showItems && <span>{open} open · {done} done</span>}
           <span className={`transition ${saving === "saving" ? "text-ink-faint" : saving === "saved" ? "text-success" : "opacity-0"}`}>
             {saving === "saving" ? "Saving…" : "Saved"}
           </span>
@@ -252,33 +326,87 @@ export function NoteView({ path, dark, reloadToken, onShellChanged, onError }: P
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-        <p className="mb-3 px-1.5 font-mono text-[11px] text-ink-faint">{note.path}</p>
-
-        <div className="space-y-px">
-          {state.items.map((item, index) => (
-            <ItemRow
-              key={item.key}
-              item={item}
-              index={index}
-              focused={state.focus === index}
-              caret={state.caret}
-              dispatch={dispatch}
-              dark={dark}
-            />
+        <div className="mb-3 flex flex-wrap items-center gap-1.5 px-1.5">
+          <span className="font-mono text-[11px] text-ink-faint">{note.path}</span>
+          <span className="mx-1 text-ink-faint">·</span>
+          {note.labels.map((l) => (
+            <span key={l} className="inline-flex items-center gap-0.5 rounded-full bg-accent-soft pl-1.5 pr-0.5 text-[11px] leading-5 text-accent">
+              #{l}
+              <button type="button" aria-label={`Remove label ${l}`} onClick={() => void setLabels(note.labels.filter((x) => x !== l))} className="rounded-full px-1 hover:bg-accent hover:text-accent-ink">×</button>
+            </span>
           ))}
+          <input
+            value={labelDraft}
+            onChange={(e) => setLabelDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                const name = cleanLabel(labelDraft);
+                if (name && !note.labels.includes(name)) void setLabels([...note.labels, name]);
+                setLabelDraft("");
+              }
+              if (e.key === "Escape") setLabelDraft("");
+            }}
+            placeholder="+ label"
+            aria-label="Add a label to this note"
+            className="w-20 bg-transparent text-[11px] text-ink-muted outline-none placeholder:text-ink-faint focus:w-32"
+          />
         </div>
 
-        <button
-          type="button"
-          onClick={() => dispatch({ type: "insertAfter", index: state.items.length - 1 })}
-          className="mt-1 flex items-center gap-2 rounded-md px-1.5 py-1 text-sm text-ink-faint hover:bg-surface-raised hover:text-ink-muted"
-        >
-          <span className="flex h-4 w-4 items-center justify-center rounded border border-dashed border-border-strong text-[11px]">+</span>
-          Add item
-        </button>
+        {showItems && (
+          <section>
+            {!isWorkplan && (
+              <SectionCaption>
+                Items
+                {layout === "items" && !isToday && open > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => void moveToToday(state.items.map((it, i) => (!it.done && it.text.trim() ? i : -1)).filter((i) => i >= 0))}
+                    className="ml-auto rounded px-1.5 py-0.5 text-[11px] normal-case tracking-normal text-accent hover:bg-accent-soft"
+                  >
+                    Move open items to today →
+                  </button>
+                )}
+              </SectionCaption>
+            )}
+            <div className="space-y-px">
+              {state.items.map((item, index) => (
+                <ItemRow
+                  key={item.key}
+                  item={item}
+                  index={index}
+                  focused={state.focus === index}
+                  caret={state.caret}
+                  dispatch={dispatch}
+                  dark={dark}
+                  allLabels={allLabels}
+                  onMoveToToday={isToday ? undefined : () => void moveToToday([index])}
+                />
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => dispatch({ type: "insertAfter", index: state.items.length - 1 })}
+              className="mt-1 flex items-center gap-2 rounded-md px-1.5 py-1 text-sm text-ink-faint hover:bg-surface-raised hover:text-ink-muted"
+            >
+              <span className="flex h-4 w-4 items-center justify-center rounded border border-dashed border-border-strong text-[11px]">+</span>
+              Add item
+            </button>
+          </section>
+        )}
 
-        {note.body && (
-          <div className="mt-8 whitespace-pre-wrap border-t border-border pt-4 text-sm text-ink-muted">{note.body}</div>
+        {!showItems && note.items.length > 0 && (
+          <Hint onClick={() => void setLayout("both")}>{note.items.length} {note.items.length === 1 ? "item" : "items"} hidden — show</Hint>
+        )}
+
+        {showNotes && (
+          <section className={showItems ? "mt-6" : ""}>
+            {(isWorkplan || showItems) && <SectionCaption>Notes</SectionCaption>}
+            <NotesEditor value={body} onChange={onBodyChange} onBlur={() => void saveBody()} placeholder={isWorkplan ? "Notes for the day…" : "Write…"} />
+          </section>
+        )}
+
+        {!showNotes && note.body.trim() !== "" && (
+          <Hint onClick={() => void setLayout("both")}>Notes hidden — show</Hint>
         )}
       </div>
 
@@ -287,20 +415,28 @@ export function NoteView({ path, dark, reloadToken, onShellChanged, onError }: P
         <Key k="↑ ↓">move</Key>
         <Key k="Tab">indent</Key>
         <Key k="Ctrl+Enter">done</Key>
+        <Key k="#">label</Key>
         <Key k="Ctrl+Shift+N">notes</Key>
+        {!isToday && <Key k="Ctrl+Shift+M">to today</Key>}
         <Key k="Ctrl+E">markdown</Key>
-        <span className="ml-auto">paste a list to add many at once</span>
       </div>
     </main>
   );
 }
 
-function Header({ note, subtitle }: { note: Note; subtitle: string }) {
+function SectionCaption({ children }: { children: React.ReactNode }) {
   return (
-    <div className="border-b border-border px-8 py-3">
-      <h1 className="text-[15px] font-semibold">{note.title}</h1>
-      <p className="text-xs text-ink-faint">{subtitle}</p>
+    <div className="mb-1.5 flex items-center border-b border-border px-1.5 pb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-faint">
+      {children}
     </div>
+  );
+}
+
+function Hint({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button type="button" onClick={onClick} className="mt-3 rounded-md border border-dashed border-border px-3 py-1.5 text-[12px] text-ink-muted hover:border-accent hover:text-accent">
+      {children}
+    </button>
   );
 }
 

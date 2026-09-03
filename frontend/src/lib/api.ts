@@ -33,11 +33,14 @@ export type Note = {
   date: string;
   hours: string;
   dayType: string;
+  layout: "items" | "notes" | "both";
   labels: string[];
   items: NoteItem[];
   body: string;
   title: string;
 };
+
+export type TrashEntry = { id: string; path: string; name: string; isFolder: boolean; deletedAt: string };
 
 export type Workplan = {
   path: string;
@@ -80,6 +83,14 @@ export const api = {
   createFolder: (path: string) => NotesService.CreateFolder(path),
   rename: (from: string, to: string) => NotesService.Rename(from, to),
   remove: (path: string) => NotesService.Delete(path),
+  saveBody: (path: string, body: string) => NotesService.SaveBody(path, body),
+  setLayout: (path: string, layout: string) => NotesService.SetLayout(path, layout),
+  setLabels: (path: string, labels: string[]) => NotesService.SetLabels(path, labels),
+  listTrash: () => NotesService.ListTrash() as Promise<TrashEntry[]>,
+  restore: (id: string) => NotesService.Restore(id),
+  deleteForever: (id: string) => NotesService.DeleteForever(id),
+  emptyTrash: () => NotesService.EmptyTrash(),
+  moveItems: (from: string, ids: string[], to: string) => WorkplanService.MoveItems(from, ids, to),
 
   ensureToday: () => WorkplanService.EnsureToday(),
   workplans: () => WorkplanService.List() as Promise<Workplan[]>,
@@ -95,7 +106,7 @@ export const api = {
 
   bundleName: () => BackupService.DefaultBundleName(),
   exportTo: (dir: string) => BackupService.Export(dir),
-  restore: (bundle: string) => BackupService.Restore(bundle),
+  restoreBackup: (bundle: string) => BackupService.Restore(bundle),
 };
 
 /** The #labels written in an item's text, and the text with them removed. */

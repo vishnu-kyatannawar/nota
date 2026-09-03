@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Label, Node, Workplan } from "../lib/api";
+import type { Label, Node, TrashEntry, Workplan } from "../lib/api";
 import type { Theme } from "../lib/theme";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { Logo } from "./Logo";
@@ -16,6 +16,10 @@ type Props = TreeActions & {
   tree: Node | null;
   workplans: Workplan[];
   labels: Label[];
+  trash: TrashEntry[];
+  onRestore: (id: string) => void;
+  onDeleteForever: (entry: TrashEntry) => void;
+  onEmptyTrash: () => void;
   weekHours: string;
   current: string;
   renaming: string | null;
@@ -41,8 +45,9 @@ function loadExpanded(): Set<string> {
 }
 
 export function Sidebar(props: Props) {
-  const { tree, workplans, labels, weekHours, current, theme, version } = props;
+  const { tree, workplans, labels, trash, weekHours, current, theme, version } = props;
   const [query, setQuery] = useState("");
+  const [trashOpen, setTrashOpen] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(loadExpanded);
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
 
@@ -149,6 +154,28 @@ export function Sidebar(props: Props) {
           {!tree?.children?.length && <Empty>Right-click or press ＋ to add a note or folder</Empty>}
         </Section>
 
+        <Section
+          title={
+            <button type="button" onClick={() => setTrashOpen((v) => !v)} className="flex items-center gap-1 uppercase hover:text-ink-muted">
+              <span className="w-3 text-center">{trashOpen ? "▾" : "▸"}</span>Trash{trash.length > 0 && <span className="ml-1 normal-case tracking-normal text-ink-faint">{trash.length}</span>}
+            </button>
+          }
+          trailing={trashOpen && trash.length > 0 ? (
+            <button type="button" onClick={props.onEmptyTrash} className="text-[10px] normal-case tracking-normal text-ink-faint hover:text-danger">Empty</button>
+          ) : null}
+        >
+          {trashOpen && trash.map((e) => (
+            <div key={e.id} className="group flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] text-ink-muted hover:bg-surface-sunken">
+              <span className="w-3 text-center text-[10px] text-ink-faint">{e.isFolder ? "▣" : "·"}</span>
+              <span className="min-w-0 flex-1 truncate" title={e.path}>{e.name.replace(/\.md$/, "")}</span>
+              <span className="text-[10px] text-ink-faint">{ago(e.deletedAt)}</span>
+              <button type="button" onClick={() => props.onRestore(e.id)} title="Restore" aria-label={`Restore ${e.path}`} className="hidden rounded px-1 text-accent group-hover:inline">↶</button>
+              <button type="button" onClick={() => props.onDeleteForever(e)} title="Delete forever" aria-label={`Delete ${e.path} forever`} className="hidden rounded px-1 text-danger group-hover:inline">×</button>
+            </div>
+          ))}
+          {trashOpen && trash.length === 0 && <Empty>Nothing in the trash. Deleted notes stay here for 30 days.</Empty>}
+        </Section>
+
         <Section title="Labels">
           <div className="flex flex-wrap gap-1 px-1">
             {labels.slice(0, 40).map((l) => (
@@ -183,12 +210,21 @@ export function Sidebar(props: Props) {
   );
 }
 
+function ago(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  const d = Math.floor(ms / 86_400_000);
+  if (d >= 1) return `${d}d`;
+  const h = Math.floor(ms / 3_600_000);
+  if (h >= 1) return `${h}h`;
+  return `${Math.max(1, Math.floor(ms / 60_000))}m`;
+}
+
 function parentOf(path: string): string {
   const i = path.lastIndexOf("/");
   return i < 0 ? "" : path.slice(0, i);
 }
 
-function Section({ title, trailing, children }: { title: string; trailing?: React.ReactNode; children: React.ReactNode }) {
+function Section({ title, trailing, children }: { title: React.ReactNode; trailing?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="mb-3">
       <div className="mb-1 flex items-center px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-faint">
