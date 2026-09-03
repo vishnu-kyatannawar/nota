@@ -1,0 +1,20 @@
+# gofmt treats CRLF-terminated files as unformatted, and the Windows CI runner
+# checks out with core.autocrlf enabled by default. Normalising every text file
+# to LF in the working tree keeps the same source linting identically on Linux
+# and Windows.
+* text=auto eol=lf
+
+# Emitted by `wails3 generate bindings`; excluded from language stats and
+# collapsed in diffs, since they are never hand-edited.
+frontend/bindings/** linguist-generated=true
+
+# Never line-ending-normalise binary assets.
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.ico    binary
+*.icns   binary
+*.car    binary
+*.ttf    binary
+*.woff   binary
+*.woff2  binary
