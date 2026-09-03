@@ -68,6 +68,16 @@ func (s Settings) SettingsPath() string {
 	return filepath.Join(s.AppDir(), "settings.json")
 }
 
+// IndexPath is where the rebuildable SQLite cache lives.
+func (s Settings) IndexPath() string {
+	return filepath.Join(s.AppDir(), "index.db")
+}
+
+// TemplatesDir holds the recurring item templates.
+func (s Settings) TemplatesDir() string {
+	return filepath.Join(s.AppDir(), "templates")
+}
+
 // WorkplanDir is the absolute path of the reserved workplan folder.
 func (s Settings) WorkplanDir() string {
 	folder := s.WorkplanFolder

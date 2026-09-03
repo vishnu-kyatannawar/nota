@@ -33,7 +33,9 @@ export function GetSettings(): $CancellablePromise<config$0.Settings> {
 }
 
 /**
- * SaveSettings persists new settings and adopts them for this session.
+ * SaveSettings persists new settings. Changing the vault path takes effect on
+ * the next launch rather than mid-session, since the open vault, index and
+ * watcher are all bound to the current one.
  */
 export function SaveSettings(s: config$0.Settings): $CancellablePromise<void> {
     return $Call.ByID(354768091, s);

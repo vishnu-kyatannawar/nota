@@ -357,3 +357,72 @@ func TestMalformedFrontmatterIsAnError(t *testing.T) {
 		t.Error("expected an error for malformed frontmatter")
 	}
 }
+
+func TestAddAndFindItem(t *testing.T) {
+	n := &Note{}
+	n.AddItem("X1", "  Do the thing  ", "09:00", 0)
+
+	it := n.FindItem("X1")
+	if it == nil {
+		t.Fatal("FindItem returned nil")
+	}
+	if it.Text != "Do the thing" {
+		t.Errorf("Text = %q, want it trimmed", it.Text)
+	}
+	if it.CreatedAt != "09:00" {
+		t.Errorf("CreatedAt = %q", it.CreatedAt)
+	}
+	if n.FindItem("missing") != nil {
+		t.Error("FindItem found an item that does not exist")
+	}
+}
+
+func TestSetDoneStampsAndClears(t *testing.T) {
+	n := &Note{}
+	n.AddItem("X1", "Thing", "09:00", 0)
+
+	if !n.SetDone("X1", true, "11:02") {
+		t.Fatal("SetDone reported no such item")
+	}
+	if it := n.FindItem("X1"); !it.Done || it.DoneAt != "11:02" {
+		t.Errorf("after ticking: done=%v at=%q", it.Done, it.DoneAt)
+	}
+
+	n.SetDone("X1", false, "12:00")
+	if it := n.FindItem("X1"); it.Done || it.DoneAt != "" {
+		t.Errorf("reopening must clear the completion time: done=%v at=%q", it.Done, it.DoneAt)
+	}
+}
+
+func TestRemoveItemAlsoRemovesItsChildren(t *testing.T) {
+	n := &Note{}
+	n.AddItem("P", "Parent", "09:00", 0)
+	n.AddItem("C1", "Child one", "09:01", 1)
+	n.AddItem("C2", "Child two", "09:02", 1)
+	n.AddItem("S", "Sibling", "09:03", 0)
+
+	if !n.RemoveItem("P") {
+		t.Fatal("RemoveItem reported no such item")
+	}
+	if len(n.Items) != 1 || n.Items[0].ID != "S" {
+		t.Errorf("items after removing the parent = %+v, want only the sibling", n.Items)
+	}
+}
+
+func TestAddItemMinutesAccumulatesAndFloorsAtZero(t *testing.T) {
+	n := &Note{}
+	n.AddItem("X1", "Thing", "09:00", 0)
+
+	n.AddItemMinutes("X1", 80)
+	if got := n.FindItem("X1").Minutes(); got != 80 {
+		t.Errorf("Minutes() = %d, want 80", got)
+	}
+	n.AddItemMinutes("X1", 40)
+	if got := n.FindItem("X1").Minutes(); got != 120 {
+		t.Errorf("Minutes() = %d, want 120", got)
+	}
+	n.AddItemMinutes("X1", -500)
+	if got := n.FindItem("X1").Minutes(); got != 0 {
+		t.Errorf("Minutes() = %d, want 0 — time logged cannot go negative", got)
+	}
+}

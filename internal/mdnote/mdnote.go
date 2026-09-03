@@ -488,3 +488,82 @@ func collapseSpaces(s string) string {
 	}
 	return s
 }
+
+// FindItem returns a pointer to the item with the given id, or nil.
+func (n *Note) FindItem(id string) *Item {
+	for i := range n.Items {
+		if n.Items[i].ID == id {
+			return &n.Items[i]
+		}
+	}
+	return nil
+}
+
+// AddItem appends an item and returns it. The caller supplies the id and clock
+// so this stays a pure operation the tests can pin down.
+func (n *Note) AddItem(id, text, at string, depth int) *Item {
+	n.Items = append(n.Items, Item{
+		ID:        id,
+		Text:      strings.TrimSpace(text),
+		CreatedAt: at,
+		Depth:     depth,
+	})
+	return &n.Items[len(n.Items)-1]
+}
+
+// SetDone ticks or unticks an item, stamping or clearing the completion time.
+// Unticking clears the stamp so a reopened item does not claim to be finished.
+func (n *Note) SetDone(id string, done bool, at string) bool {
+	it := n.FindItem(id)
+	if it == nil {
+		return false
+	}
+	it.Done = done
+	if done {
+		it.DoneAt = at
+	} else {
+		it.DoneAt = ""
+	}
+	return true
+}
+
+// RemoveItem deletes an item and everything nested beneath it, since a child
+// left without its parent would silently change meaning.
+func (n *Note) RemoveItem(id string) bool {
+	for i := range n.Items {
+		if n.Items[i].ID != id {
+			continue
+		}
+		end := i + 1
+		for end < len(n.Items) && n.Items[end].Depth > n.Items[i].Depth {
+			end++
+		}
+		n.Items = append(n.Items[:i], n.Items[end:]...)
+		return true
+	}
+	return false
+}
+
+// SetItemText replaces an item's visible text, keeping its metadata.
+func (n *Note) SetItemText(id, text string) bool {
+	it := n.FindItem(id)
+	if it == nil {
+		return false
+	}
+	it.Text = strings.TrimSpace(text)
+	return true
+}
+
+// AddItemMinutes adds to the time logged against an item, never below zero.
+func (n *Note) AddItemMinutes(id string, delta int) bool {
+	it := n.FindItem(id)
+	if it == nil {
+		return false
+	}
+	total := it.Minutes() + delta
+	if total < 0 {
+		total = 0
+	}
+	it.SetMinutes(total)
+	return true
+}

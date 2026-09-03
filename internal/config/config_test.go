@@ -160,4 +160,10 @@ func TestAppDirIsInsideVault(t *testing.T) {
 	if got, want := s.WorkplanDir(), filepath.Join("/srv/notes", "Workplans"); got != want {
 		t.Errorf("WorkplanDir() = %q, want %q", got, want)
 	}
+	if got, want := s.IndexPath(), filepath.Join("/srv/notes", ".nota", "index.db"); got != want {
+		t.Errorf("IndexPath() = %q, want %q", got, want)
+	}
+	if got, want := s.TemplatesDir(), filepath.Join("/srv/notes", ".nota", "templates"); got != want {
+		t.Errorf("TemplatesDir() = %q, want %q", got, want)
+	}
 }

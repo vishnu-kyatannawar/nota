@@ -1,9 +1,3 @@
-// Package services holds the types bound into the frontend by Wails.
-//
-// Everything here is deliberately thin: a service validates its inputs, calls
-// into internal/..., and returns. Keeping the logic out of this layer means the
-// Wails v3 beta API can churn without dragging application behaviour with it,
-// and it keeps internal/ testable without a running webview.
 package services
 
 import (
@@ -14,14 +8,11 @@ import (
 
 // AppService exposes application-level state to the frontend.
 type AppService struct {
-	version  string
-	settings config.Settings
+	core *Core
 }
 
-// NewAppService returns a service seeded with the loaded settings.
-func NewAppService(version string, settings config.Settings) *AppService {
-	return &AppService{version: version, settings: settings}
-}
+// NewAppService returns the service bound as AppService.
+func NewAppService(core *Core) *AppService { return &AppService{core: core} }
 
 // Info is the snapshot the frontend needs on startup.
 type Info struct {
@@ -32,27 +23,34 @@ type Info struct {
 
 // GetInfo returns the current application info.
 func (a *AppService) GetInfo() Info {
+	s := a.core.Settings()
 	return Info{
-		Version:     a.version,
-		VaultPath:   a.settings.VaultPath,
-		WorkplanDir: a.settings.WorkplanDir(),
+		Version:     a.core.version,
+		VaultPath:   s.VaultPath,
+		WorkplanDir: s.WorkplanDir(),
 	}
 }
 
 // GetSettings returns the active settings.
-func (a *AppService) GetSettings() config.Settings {
-	return a.settings
-}
+func (a *AppService) GetSettings() config.Settings { return a.core.Settings() }
 
-// SaveSettings persists new settings and adopts them for this session.
+// SaveSettings persists new settings. Changing the vault path takes effect on
+// the next launch rather than mid-session, since the open vault, index and
+// watcher are all bound to the current one.
 func (a *AppService) SaveSettings(s config.Settings) error {
 	s.VaultPath = config.ExpandHome(s.VaultPath)
 	if s.VaultPath == "" {
 		return fmt.Errorf("vault path must not be empty")
 	}
+	if s.WorkplanFolder == "" {
+		s.WorkplanFolder = config.DefaultWorkplanFolder
+	}
+
+	a.core.mu.Lock()
+	defer a.core.mu.Unlock()
 	if err := config.Save(s.SettingsPath(), s); err != nil {
 		return err
 	}
-	a.settings = s
+	a.core.settings = s
 	return nil
 }
