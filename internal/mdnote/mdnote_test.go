@@ -606,3 +606,84 @@ func TestAppendItemsGoesToTheEnd(t *testing.T) {
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)
 	}
 }
+
+func TestHeadingsBetweenItemsAreGroupHeadings(t *testing.T) {
+	src, err := os.ReadFile(filepath.Join("testdata", "headings.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, err := Parse(string(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	kinds := make([]string, 0, len(n.Items))
+	for _, it := range n.Items {
+		kinds = append(kinds, it.Kind+":"+it.Text)
+	}
+	want := []string{":Before any heading", "heading:Must", ":Ship it", ":Child", "heading:Good", ":Polish"}
+	if strings.Join(kinds, "|") != strings.Join(want, "|") {
+		t.Errorf("items = %v\nwant    %v", kinds, want)
+	}
+	if n.Items[1].Level != 2 || n.Items[4].Level != 3 {
+		t.Errorf("heading levels not kept: %d, %d", n.Items[1].Level, n.Items[4].Level)
+	}
+	if !strings.HasPrefix(n.Body, "## Notes\n") {
+		t.Errorf("the heading followed by prose should start the body, got body %q", n.Body)
+	}
+}
+
+func TestHeadingFollowedByProseIsBody(t *testing.T) {
+	n, err := Parse("## Title\n\nJust prose here.\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(n.Items) != 0 {
+		t.Errorf("a heading with no items after it was parsed as a group: %+v", n.Items)
+	}
+	if n.Body != "## Title\n\nJust prose here.\n" {
+		t.Errorf("Body = %q", n.Body)
+	}
+}
+
+func TestConsecutiveHeadingsBeforeAnItem(t *testing.T) {
+	n, err := Parse("## A\n\n## B\n\n- [ ] x <!--n id:X-->\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(n.Items) != 3 || n.Items[0].Kind != KindHeading || n.Items[1].Kind != KindHeading || n.Items[2].ID != "X" {
+		t.Errorf("items = %+v", n.Items)
+	}
+}
+
+func TestHeadingsAreNotTakenAndCarryNoLabels(t *testing.T) {
+	n, err := Parse("## Must #notalabel\n\n- [ ] One #real [01:00] <!--n id:A-->\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := n.AllLabels(); len(got) != 1 || got[0] != "real" {
+		t.Errorf("AllLabels = %v, want [real]", got)
+	}
+	if n.TotalMinutes() != 60 {
+		t.Errorf("TotalMinutes = %d", n.TotalMinutes())
+	}
+	if taken := n.TakeItems([]string{""}); len(taken) != 0 {
+		t.Errorf("an empty id took something: %+v", taken)
+	}
+}
+
+func TestReplaceItemsPassesHeadingsThrough(t *testing.T) {
+	n := &Note{}
+	n.ReplaceItemsAt([]Item{
+		{Kind: KindHeading, Text: "Must"},
+		{ID: "A", Text: "Ship", CreatedAt: "09:00"},
+		{Kind: KindHeading, Text: "Later", Level: 3},
+	}, "10:00")
+	got := Serialize(n)
+	want := "## Must\n\n- [ ] Ship <!--n id:A t:09:00-->\n\n### Later\n\n"
+	if got != want {
+		t.Errorf("got:\n%q\nwant:\n%q", got, want)
+	}
+	if n.Items[0].ID != "" || n.Items[0].CreatedAt != "" {
+		t.Errorf("a heading was given item metadata: %+v", n.Items[0])
+	}
+}

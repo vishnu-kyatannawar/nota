@@ -28,6 +28,14 @@ import (
 // Ext is the file extension a note is stored with.
 const Ext = ".md"
 
+// KindHeading marks an Item that is a group heading between items rather than
+// an action item: "## Must". It has no checkbox, id or timestamps.
+const KindHeading = "heading"
+
+// headingLine matches a markdown heading; whether it is a group heading or the
+// start of the body depends on what follows it (see isGroupHeadingAt).
+var headingLine = regexp.MustCompile(`^(#{1,6})\s+(.*?)\s*$`)
+
 // Layouts decide which sections a note shows. A workplan is always both, with
 // items first; any other note may be items only, notes only, or both.
 const (
@@ -72,8 +80,12 @@ type Note struct {
 	HadFrontmatter bool `yaml:"-"`
 }
 
-// Item is one action item.
+// Item is one action item, or a group heading between items (see KindHeading).
 type Item struct {
+	// Kind is "" for an action item or KindHeading for a heading.
+	Kind string
+	// Level is the heading level (1–6) for a heading; new ones are written as 2.
+	Level int
 	// Text is the visible text, including any #labels and [hh:mm] token. It is
 	// stored exactly as written so serialising cannot reorder or drop anything.
 	Text string
@@ -168,6 +180,18 @@ func parseItems(src string) ([]Item, string) {
 			continue
 		}
 
+		// A heading is a group heading when an item follows it; a heading that
+		// leads into prose starts the body exactly as it always did.
+		if m := headingLine.FindStringSubmatch(line); m != nil && !inFence && isGroupHeadingAt(lines, i) {
+			flush()
+			items = append(items, Item{Kind: KindHeading, Level: len(m[1]), Text: m[2]})
+			continue
+		}
+		// Blank lines between groups are spacing, not the start of the body.
+		if current == nil && len(items) > 0 && strings.TrimSpace(line) == "" {
+			continue
+		}
+
 		if m := itemLine.FindStringSubmatch(line); m != nil {
 			flush()
 			indent := len(strings.ReplaceAll(m[1], "\t", strings.Repeat(" ", indentUnit)))
@@ -194,6 +218,24 @@ func parseItems(src string) ([]Item, string) {
 
 	flush()
 	return items, ""
+}
+
+// isGroupHeadingAt reports whether the heading on line i is followed, after any
+// blank lines, by an item line — or by another heading that is.
+func isGroupHeadingAt(lines []string, i int) bool {
+	for j := i + 1; j < len(lines); j++ {
+		if strings.TrimSpace(lines[j]) == "" {
+			continue
+		}
+		if itemLine.MatchString(lines[j]) {
+			return true
+		}
+		if headingLine.MatchString(lines[j]) {
+			return isGroupHeadingAt(lines, j)
+		}
+		return false
+	}
+	return false
 }
 
 // splitMeta separates the visible text from the trailing <!--n ...--> comment.
@@ -258,6 +300,19 @@ func Serialize(n *Note) string {
 	}
 
 	for i, it := range n.Items {
+		if it.Kind == KindHeading {
+			level := it.Level
+			if level < 1 || level > 6 {
+				level = 2
+			}
+			// A heading sits in its own paragraph: one blank line before (unless
+			// it opens the list) and one after.
+			if out := b.String(); out != "" && !strings.HasSuffix(out, "\n\n") {
+				b.WriteString("\n")
+			}
+			b.WriteString(strings.Repeat("#", level) + " " + it.Text + "\n\n")
+			continue
+		}
 		indent := strings.Repeat(" ", it.Depth*indentUnit)
 		mark := " "
 		if it.Done {
@@ -394,6 +449,9 @@ func (n *Note) AllLabels() []string {
 		seen[l] = true
 	}
 	for _, it := range n.Items {
+		if it.Kind == KindHeading {
+			continue
+		}
 		for _, l := range it.Labels() {
 			seen[l] = true
 		}
@@ -410,6 +468,9 @@ func (n *Note) AllLabels() []string {
 func (n *Note) TotalMinutes() int {
 	total := 0
 	for _, it := range n.Items {
+		if it.Kind == KindHeading {
+			continue
+		}
 		total += it.Minutes()
 	}
 	return total
@@ -606,6 +667,14 @@ func (n *Note) ReplaceItemsAt(items []Item, at string) {
 
 	out := make([]Item, 0, len(items))
 	for _, in := range items {
+		if in.Kind == KindHeading {
+			level := in.Level
+			if level < 1 || level > 6 {
+				level = 2
+			}
+			out = append(out, Item{Kind: KindHeading, Level: level, Text: strings.TrimSpace(in.Text)})
+			continue
+		}
 		it := Item{
 			ID:    in.ID,
 			Text:  strings.TrimSpace(in.Text),
@@ -671,7 +740,7 @@ func (n *Note) TakeItems(ids []string) []Item {
 	var taken, kept []Item
 	for i := 0; i < len(n.Items); {
 		it := n.Items[i]
-		if !want[it.ID] {
+		if it.Kind == KindHeading || !want[it.ID] {
 			kept = append(kept, it)
 			i++
 			continue

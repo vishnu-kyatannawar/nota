@@ -557,3 +557,42 @@ func TestSeededRecurringItemsGetIDs(t *testing.T) {
 		seen[it.ID] = true
 	}
 }
+
+// A heading travels with its group: kept when something under it is carried,
+// dropped when the whole group was finished.
+func TestRolloverCarriesHeadingsOnlyWithTheirItems(t *testing.T) {
+	m, v := newManager(t)
+	write(t, v, "Workplans/2026-09-01.md", `---
+type: workplan
+date: 2026-09-01
+hours: "09:00"
+daytype: work
+---
+
+- [ ] Loose <!--n id:L t:08:00-->
+
+## Must
+
+- [x] Done one <!--n id:M1 t:09:00 done:10:00-->
+- [ ] Still open <!--n id:M2 t:09:01-->
+
+## Good
+
+- [x] All finished <!--n id:G1 t:09:02 done:11:00-->
+
+### Later
+
+- [ ] Deep one <!--n id:D1 t:09:03-->
+`)
+	if _, err := m.Ensure(date("2026-09-02")); err != nil {
+		t.Fatal(err)
+	}
+	got := read(t, v, "Workplans/2026-09-02.md")
+	want := "---\ntype: workplan\ndate: 2026-09-02\nhours: \"00:00\"\ndaytype: work\n---\n\n" +
+		"- [ ] Loose <!--n id:L t:08:00 from:2026-09-01 carried:1-->\n\n" +
+		"## Must\n\n- [ ] Still open <!--n id:M2 t:09:01 from:2026-09-01 carried:1-->\n\n" +
+		"### Later\n\n- [ ] Deep one <!--n id:D1 t:09:03 from:2026-09-01 carried:1-->\n"
+	if got != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+}

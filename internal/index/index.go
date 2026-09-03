@@ -243,6 +243,9 @@ func insertNote(tx *sql.Tx, path string, note *mdnote.Note) error {
 	}
 
 	for pos, it := range note.Items {
+		if it.Kind == mdnote.KindHeading {
+			continue // headings group items; they are not items themselves
+		}
 		done := 0
 		if it.Done {
 			done = 1

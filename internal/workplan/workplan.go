@@ -140,11 +140,26 @@ func (m *Manager) carryForward(day time.Time) ([]mdnote.Item, error) {
 		return nil, err
 	}
 
-	var out []mdnote.Item
-	for _, it := range prev.Items {
+	var (
+		out     []mdnote.Item
+		heading *mdnote.Item // the group heading not yet written, if any
+	)
+	for i := range prev.Items {
+		it := prev.Items[i]
+		if it.Kind == mdnote.KindHeading {
+			// Held back until something under it turns out to carry, so a group
+			// that was entirely finished disappears with its heading.
+			h := it
+			heading = &h
+			continue
+		}
 		if it.Done {
 			// Completed work stays on the day it was completed.
 			continue
+		}
+		if heading != nil {
+			out = append(out, *heading)
+			heading = nil
 		}
 		// The item keeps its identity, its original creation time and anything
 		// logged against it; only the completion state and carry counters move.
