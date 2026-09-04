@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import type { LocalItem } from "../lib/items";
 import type { Note, Split } from "../lib/api";
 import { api, HHMM } from "../lib/api";
 import { blankItem, fromServer, initialState, keepUnsaved, mergeSaved, reducer, toInputs } from "../lib/items";
@@ -56,6 +57,16 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, split,
 
   const anyDirty = () => stateRef.current.dirty || bodyRef.current.dirty || inFlight.current;
 
+  // Replacing the whole list has to update the ref in the same breath as the
+  // state. The effect above only runs after a render, and both the load and the
+  // save read this ref immediately afterwards — so a second load arriving in
+  // the same tick would otherwise be handed the items of the note we just
+  // navigated away from, and merge them into this one.
+  const apply = useCallback((items: LocalItem[], dirty = false) => {
+    stateRef.current = { ...stateRef.current, items, dirty };
+    dispatch({ type: "replaceAll", items, dirty });
+  }, []);
+
   const load = useCallback(
     (p: string) =>
       api
@@ -73,7 +84,7 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, split,
           loadedPath.current = p;
           // An empty items section shows one blank row to type on; it is not
           // an item until it has text, so this does not mark the note dirty.
-          dispatch({ type: "replaceAll", items: items.length || !showsItems ? items : [blankItem()] });
+          apply(items.length || !showsItems ? items : [blankItem()]);
           // A load can land while the user is renaming this note in the sidebar;
           // taking the caret then is what made rename look broken.
           if (items.length === 0 && showsItems && !stealsFocus()) dispatch({ type: "focus", index: 0 });
@@ -81,7 +92,7 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, split,
           bodyRef.current = { value: n.body, dirty: false };
         })
         .catch((e) => onError(String(e))),
-    [onError],
+    [apply, onError],
   );
 
   const afterSave = useCallback(() => {
@@ -107,7 +118,7 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, split,
         saved.map((it) => ({ id: it.ID, createdAt: it.CreatedAt, doneAt: it.DoneAt, from: it.From, carried: it.Carried, recurring: it.Recurring })),
         kept,
       );
-      dispatch({ type: "replaceAll", items: merged, dirty: latest.items !== s.items });
+      apply(merged, latest.items !== s.items);
       setSaving("saved");
       onShellChanged();
     } catch (e) {
@@ -117,7 +128,7 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, split,
       inFlight.current = false;
       afterSave();
     }
-  }, [afterSave, onError, onShellChanged]);
+  }, [afterSave, apply, onError, onShellChanged]);
 
   const saveBody = useCallback(async (): Promise<void> => {
     const b = bodyRef.current;
