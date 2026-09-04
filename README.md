@@ -2,9 +2,10 @@
 
 A desktop note application built around one dated workplan per day.
 
-Notes are plain markdown files in a directory you own. That vault is the source of
-truth — the app's SQLite index is a cache that can be deleted and rebuilt. Open a
-note in vim, grep the whole tree, put it in git; none of that needs Nota running.
+The sidebar holds **pages**, grouped in folders. A page carries action items, free-form
+notes, or both. Every page is a plain markdown file in a directory you own. That vault is
+the source of truth — the app's SQLite index is a cache that can be deleted and rebuilt.
+Open a page in vim, grep the whole tree, put it in git; none of that needs Nota running.
 
 Linux and Windows, single binary, Go + a webview frontend.
 
@@ -43,15 +44,15 @@ release's published SHA-256 before installing it.
   for notes; JetBrains Mono for code. All bundled, nothing fetched. Three sizes.
 - **Light, dark or system theme**, and a window that opens maximised the first time and
   remembers its size and position after that.
-- **Labels** — type `#label` inline on any item, or list them in a note's frontmatter.
+- **Labels** — type `#label` inline on any item, or list them in a page's frontmatter.
 - **Code and JSON** — fenced blocks with real syntax highlighting, in an item's
-  notes or anywhere in the note.
-- **Notes with formatting** — under the items on every workplan, and on any note: headings,
+  notes or anywhere on the page.
+- **Notes with formatting** — under the items on every workplan, and on any page: headings,
   bold, italics, bullets, numbered lists, quotes and code, saved as markdown.
-- **Notes that are items, notes, or both** — an Items / Notes / Both toggle on every note.
+- **Pages that are items, notes, or both** — an Items / Notes / Both toggle on every page.
   Keep a backlog as an item list and move items into today's workplan with one action.
 - **Labels you can take off** — `#label` chips with an ×, and `#` autocompletes existing ones.
-- **Trash** — deleted notes and folders sit in Trash for 30 days; restore them from the sidebar.
+- **Trash** — deleted pages and folders sit in Trash for 30 days; restore them from the sidebar.
 - **Recurring items** — daily, weekday or weekly, from a hand-editable file.
 - **Export and restore** — one zip of the whole vault, and back again.
 
@@ -69,7 +70,7 @@ release's published SHA-256 before installing it.
 | `#` | Add a label (autocompletes) |
 | `Ctrl+Shift+N` | Open or remove the item's notes |
 | `Ctrl+Shift+M` | Move the item to today's workplan |
-| `Ctrl+E` | Swap the note to raw markdown and back |
+| `Ctrl+E` | Swap the page to raw markdown and back |
 | Paste several lines | One item per line; `- [x]` lines arrive ticked |
 
 ## Prerequisites
