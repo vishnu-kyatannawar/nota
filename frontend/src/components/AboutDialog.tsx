@@ -33,7 +33,7 @@ export function AboutDialog({ open, info, onClose }: { open: boolean; info: Info
           {link("MIT licence", info.licence)}
         </div>
       )}
-      <p className="mt-4 text-[11px] text-ink-faint">Your notes live in <span className="font-mono">{info?.vaultPath}</span></p>
+      <p className="mt-4 text-[11px] text-ink-faint">Your pages live in <span className="font-mono">{info?.vaultPath}</span></p>
     </Dialog>
   );
 }

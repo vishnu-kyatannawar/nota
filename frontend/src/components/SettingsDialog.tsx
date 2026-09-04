@@ -141,7 +141,7 @@ export function SettingsDialog({ open, onClose, theme, onTheme, fonts, onFonts, 
 
         <Field label="Vault">
           <div className="rounded-md border border-border bg-surface px-2.5 py-1.5 font-mono text-xs text-ink-muted">{settings?.vaultPath ?? "…"}</div>
-          <p className="mt-1 text-xs text-ink-muted">Notes are plain markdown files in this folder. Settings live inside it at .nota/settings.json.</p>
+          <p className="mt-1 text-xs text-ink-muted">Pages are plain markdown files in this folder. Settings live inside it at .nota/settings.json.</p>
         </Field>
 
         <Field label="Backup">

@@ -4,6 +4,8 @@ import type { Hit, Info, Label, Node, TrashEntry, Workplan } from "./lib/api";
 import { api } from "./lib/api";
 import { applyTheme, isTheme, resolvedTheme, THEMES, type Theme } from "./lib/theme";
 import { applyFonts, DEFAULT_FONTS, normaliseFonts, type Fonts } from "./lib/fonts";
+import { findNode } from "./lib/tree";
+import { useExpanded } from "./lib/expanded";
 import { Sidebar } from "./components/Sidebar";
 import { NoteView } from "./components/NoteView";
 import { AboutDialog } from "./components/AboutDialog";
@@ -30,6 +32,14 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [confirm, setConfirm] = useState<{ kind: "delete"; node: Node } | { kind: "forever"; entry: TrashEntry } | { kind: "empty" } | null>(null);
 
+  const { expanded, toggle, expand, reveal, renamePrefix, forget } = useExpanded();
+
+  // A rename box only exists as a row in the tree, so a path that has gone away
+  // — deleted elsewhere, or created into a folder that never opened — must not
+  // leave a rename pending on nothing. Derived, not synced: the stale state is
+  // simply never rendered, and the next rename overwrites it.
+  const renamingNode = renaming && findNode(tree, renaming) ? renaming : null;
+
   const fail = useCallback((m: string) => setError(m), []);
 
   const refreshShell = useCallback(async () => {
@@ -44,6 +54,10 @@ export default function App() {
       fail(String(e));
     }
   }, [fail]);
+
+  // A fresh closure here re-runs NoteView's reload effect on every App render,
+  // which re-keys rows and resets the caret mid-word.
+  const shellChanged = useCallback(() => void refreshShell(), [refreshShell]);
 
   const open = useCallback((path: string) => {
     setHits(null);
@@ -134,12 +148,13 @@ export default function App() {
     try {
       const path = await api.createNote(`${folder ? folder + "/" : ""}Untitled.md`);
       await refreshShell();
+      reveal(path);
       open(path);
       setRenaming(path);
     } catch (e) {
       fail(String(e));
     }
-  }, [fail, open, refreshShell]);
+  }, [fail, open, refreshShell, reveal]);
 
   const newFolder = useCallback(async (folder: string) => {
     try {
@@ -149,11 +164,13 @@ export default function App() {
       const path = `${folder ? folder + "/" : ""}${name}`;
       await api.createFolder(path);
       await refreshShell();
+      reveal(path);
+      expand(path);
       setRenaming(path);
     } catch (e) {
       fail(String(e));
     }
-  }, [fail, refreshShell, tree]);
+  }, [expand, fail, refreshShell, reveal, tree]);
 
   const chooseFonts = useCallback((f: Fonts) => {
     setFonts(f);
@@ -169,24 +186,26 @@ export default function App() {
     if (!clean || to === from) return;
     try {
       await api.rename(from, to);
+      renamePrefix(from, to);
       await refreshShell();
       if (current === from) setCurrent(to);
       else if (current?.startsWith(from + "/")) setCurrent(to + current.slice(from.length));
     } catch (e) {
       fail(String(e));
     }
-  }, [current, fail, refreshShell]);
+  }, [current, fail, refreshShell, renamePrefix]);
 
   const remove = useCallback(async (node: Node) => {
     setConfirm(null);
     try {
       await api.remove(node.path);
+      forget(node.path);
       if (current === node.path || current?.startsWith(node.path + "/")) setCurrent(null);
       await refreshShell();
     } catch (e) {
       fail(String(e));
     }
-  }, [current, fail, refreshShell]);
+  }, [current, fail, forget, refreshShell]);
 
   const restore = useCallback(async (id: string) => {
     try {
@@ -232,7 +251,9 @@ export default function App() {
         onEmptyTrash={() => setConfirm({ kind: "empty" })}
         weekHours={weekHours}
         current={current ?? ""}
-        renaming={renaming}
+        renaming={renamingNode}
+        expanded={expanded}
+        onToggle={toggle}
         setRenaming={setRenaming}
         workplanFolder={info?.workplanDir.split(/[\\/]/).pop() ?? "Workplans"}
         theme={theme}
@@ -269,12 +290,12 @@ export default function App() {
           reloadToken={reloadToken}
           allLabels={labels.map((l) => l.name)}
           todayPath={todayPath}
-          onShellChanged={() => void refreshShell()}
+          onShellChanged={shellChanged}
           onError={fail}
         />
       ) : (
         <main className="flex min-w-0 flex-1 items-center justify-center p-6">
-          <p className="text-sm text-ink-faint">Pick a note, or press ＋ to make one.</p>
+          <p className="text-sm text-ink-faint">Pick a page, or press ＋ to make one.</p>
         </main>
       )}
 
@@ -292,7 +313,7 @@ export default function App() {
       <ConfirmDialog
         open={confirm !== null}
         title={
-          confirm?.kind === "delete" ? (confirm.node.isFolder ? "Move folder to trash?" : "Move note to trash?")
+          confirm?.kind === "delete" ? (confirm.node.isFolder ? "Move folder to trash?" : "Move page to trash?")
           : confirm?.kind === "forever" ? "Delete forever?"
           : "Empty the trash?"
         }
@@ -322,14 +343,4 @@ export default function App() {
       )}
     </div>
   );
-}
-
-function findNode(tree: Node | null, path: string): Node | undefined {
-  if (!tree) return undefined;
-  for (const c of tree.children ?? []) {
-    if (c.path === path) return c;
-    const deeper = findNode(c, path);
-    if (deeper) return deeper;
-  }
-  return undefined;
 }
