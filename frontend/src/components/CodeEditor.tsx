@@ -1,8 +1,7 @@
 import { useEffect, useRef } from "react";
 import { EditorView, basicSetup } from "codemirror";
-import { Compartment, EditorState } from "@codemirror/state";
-import { Decoration, EditorView as View, ViewPlugin, WidgetType, keymap, type DecorationSet, type ViewUpdate } from "@codemirror/view";
-import { RangeSetBuilder } from "@codemirror/state";
+import { Compartment, EditorState, RangeSetBuilder, StateField } from "@codemirror/state";
+import { Decoration, EditorView as View, WidgetType, keymap, type DecorationSet } from "@codemirror/view";
 import { imagesIn, storeImages } from "../lib/paste";
 import { markdown } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
@@ -42,30 +41,22 @@ class ImageWidget extends WidgetType {
 const IMAGE_LINE = /^!\[([^\]]*)\]\(([^)\s]+)\)\s*$/;
 
 // Markdown is the file; this only draws what the markdown already says.
-const images = ViewPlugin.fromClass(
-  class {
-    decorations: DecorationSet;
-    constructor(view: EditorView) {
-      this.decorations = build(view);
-    }
-    update(u: ViewUpdate) {
-      if (u.docChanged || u.viewportChanged) this.decorations = build(u.view);
-    }
-  },
-  { decorations: (v) => v.decorations },
-);
+//
+// A StateField rather than a ViewPlugin: CodeMirror refuses block decorations
+// from a plugin, and the refusal is an exception thrown on every update — which
+// aborted the very insert that pasting an image was making.
+const images = StateField.define<DecorationSet>({
+  create: (state) => build(state),
+  update: (deco, tr) => (tr.docChanged ? build(tr.state) : deco),
+  provide: (f) => View.decorations.from(f),
+});
 
-function build(view: EditorView): DecorationSet {
+function build(state: EditorState): DecorationSet {
   const b = new RangeSetBuilder<Decoration>();
-  for (const { from, to } of view.visibleRanges) {
-    for (let pos = from; pos <= to; ) {
-      const line = view.state.doc.lineAt(pos);
-      const m = IMAGE_LINE.exec(line.text.trim());
-      if (m) {
-        b.add(line.to, line.to, Decoration.widget({ widget: new ImageWidget(m[2], m[1]), side: 1, block: true }));
-      }
-      pos = line.to + 1;
-    }
+  for (let i = 1; i <= state.doc.lines; i++) {
+    const line = state.doc.line(i);
+    const m = IMAGE_LINE.exec(line.text.trim());
+    if (m) b.add(line.to, line.to, Decoration.widget({ widget: new ImageWidget(m[2], m[1]), side: 1, block: true }));
   }
   return b.finish();
 }
