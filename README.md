@@ -55,7 +55,8 @@ release's published SHA-256 before installing it.
   Keep a backlog as an item list and move items into today's workplan with one action.
 - **Labels you can take off** — `#label` chips with an ×, and `#` autocompletes existing ones.
 - **Trash** — deleted pages and folders sit in Trash for 30 days; restore them from the sidebar.
-- **Recurring items** — daily, weekday or weekly, from a hand-editable file.
+- **Items that repeat** — a section at the top of every workplan. Add one there and it
+  comes back each day unticked; stopping it leaves your past workplans untouched.
 - **Images** — paste a screenshot into a page's notes or an item's notes. It is written to
   `attachments/` in your vault and linked as ordinary markdown, so it opens anywhere.
 - **Export and restore** — one zip of the whole vault, and back again.
@@ -184,7 +185,14 @@ daytype: work
 - [ ] Review PR 412 #rv-portal <!--n id:01K6J8XX t:09:40 from:2026-09-01 carried:1-->
 ```
 
-Recurring items live in `.nota/templates/recurring.md`, one per line:
+Items that repeat every day sit in their own section at the top of each workplan.
+Add one there, and it appears today and every day after, unticked each morning
+whether or not you finished it yesterday. Editing the text renames it everywhere.
+Stopping one takes it out of today and tomorrow; workplans already written keep
+their copy, because what you did on a day is a record of that day.
+
+They are kept in `.nota/templates/recurring.md`, which you can also edit by hand —
+that is the only way to get the weekday-only and weekly cadences:
 
 ```markdown
 - [ ] Check calendar #daily @daily
