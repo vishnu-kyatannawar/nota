@@ -74,8 +74,6 @@ function Toolbar({ editor }: { editor: Editor }) {
       quote: editor.isActive("blockquote"),
     }),
   });
-  const c = editor.chain().focus();
-
   const btn = (label: string, on: boolean, run: () => void, title: string, cls = "") => (
     <button
       type="button"
@@ -90,19 +88,19 @@ function Toolbar({ editor }: { editor: Editor }) {
 
   return (
     <div className="mb-1 flex flex-wrap items-center gap-0.5 rounded-md border border-border bg-surface-raised p-0.5">
-      {btn("B", active.bold, () => c.toggleBold().run(), "Bold (Ctrl+B)", "font-bold")}
-      {btn("I", active.italic, () => c.toggleItalic().run(), "Italic (Ctrl+I)", "italic")}
-      {btn("S", active.strike, () => c.toggleStrike().run(), "Strikethrough", "line-through")}
+      {btn("B", active.bold, () => editor.chain().focus().toggleBold().run(), "Bold (Ctrl+B)", "font-bold")}
+      {btn("I", active.italic, () => editor.chain().focus().toggleItalic().run(), "Italic (Ctrl+I)", "italic")}
+      {btn("S", active.strike, () => editor.chain().focus().toggleStrike().run(), "Strikethrough", "line-through")}
       <span className="mx-1 h-4 w-px bg-border" />
-      {btn("H1", active.h1, () => c.toggleHeading({ level: 1 }).run(), "Heading 1")}
-      {btn("H2", active.h2, () => c.toggleHeading({ level: 2 }).run(), "Heading 2")}
-      {btn("H3", active.h3, () => c.toggleHeading({ level: 3 }).run(), "Heading 3")}
+      {btn("H1", active.h1, () => editor.chain().focus().toggleHeading({ level: 1 }).run(), "Heading 1")}
+      {btn("H2", active.h2, () => editor.chain().focus().toggleHeading({ level: 2 }).run(), "Heading 2")}
+      {btn("H3", active.h3, () => editor.chain().focus().toggleHeading({ level: 3 }).run(), "Heading 3")}
       <span className="mx-1 h-4 w-px bg-border" />
-      {btn("•", active.bullet, () => c.toggleBulletList().run(), "Bullet list")}
-      {btn("1.", active.ordered, () => c.toggleOrderedList().run(), "Numbered list")}
-      {btn("‹›", active.code, () => c.toggleCodeBlock().run(), "Code block")}
-      {btn("“", active.quote, () => c.toggleBlockquote().run(), "Quote")}
-      {btn("—", false, () => c.setHorizontalRule().run(), "Divider")}
+      {btn("•", active.bullet, () => editor.chain().focus().toggleBulletList().run(), "Bullet list")}
+      {btn("1.", active.ordered, () => editor.chain().focus().toggleOrderedList().run(), "Numbered list")}
+      {btn("‹›", active.code, () => editor.chain().focus().toggleCodeBlock().run(), "Code block")}
+      {btn("“", active.quote, () => editor.chain().focus().toggleBlockquote().run(), "Quote")}
+      {btn("—", false, () => editor.chain().focus().setHorizontalRule().run(), "Divider")}
     </div>
   );
 }
