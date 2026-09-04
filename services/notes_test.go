@@ -8,11 +8,17 @@ import (
 	"github.com/vishnu-kyatannawar/nota/internal/config"
 )
 
-func newTestCore(t *testing.T) *Core {
+// testSettings is a fresh vault under a temporary directory.
+func testSettings(t *testing.T) config.Settings {
 	t.Helper()
 	s := config.DefaultSettings()
 	s.VaultPath = filepath.Join(t.TempDir(), "Notes")
-	core, err := NewCore("test", s)
+	return s
+}
+
+func newTestCore(t *testing.T) *Core {
+	t.Helper()
+	core, err := NewCore("test", testSettings(t))
 	if err != nil {
 		t.Fatalf("NewCore: %v", err)
 	}

@@ -16,6 +16,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"github.com/vishnu-kyatannawar/nota/internal/config"
+	"github.com/vishnu-kyatannawar/nota/internal/update"
 	"github.com/vishnu-kyatannawar/nota/services"
 )
 
@@ -37,6 +38,7 @@ func init() {
 	// bindings a typed API for each.
 	application.RegisterEvent[string]("note:changed")
 	application.RegisterEvent[string]("workplan:rolled")
+	application.RegisterEvent[services.UpdateState]("update:state")
 }
 
 func main() {
@@ -57,6 +59,12 @@ func run() error {
 	}
 	defer func() { _ = core.Close() }()
 
+	// Sweep the binary a previous Windows update moved aside. Harmless if it
+	// is not there, which is every launch on Linux.
+	if exe, err := update.Target(); err == nil {
+		update.CleanupOld(exe)
+	}
+
 	app := application.New(application.Options{
 		Name:        "Nota",
 		Description: "Daily workplans and notes, stored as plain markdown",
@@ -67,6 +75,7 @@ func run() error {
 			application.NewService(services.NewWorkplanService(core)),
 			application.NewService(services.NewSearchService(core)),
 			application.NewService(services.NewBackupService(core)),
+			application.NewService(services.NewUpdateService(core)),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -83,10 +92,38 @@ func run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	core.SetUpdateEmitter(func(st services.UpdateState) { app.Event.Emit("update:state", st) })
+
 	watchVault(ctx, app, core)
 	rollAtMidnight(ctx, app, core)
+	checkForUpdates(ctx, core)
 
 	return app.Run()
+}
+
+// checkForUpdates looks for a new release shortly after launch and once a day
+// after that — but only if the user has said the app may. Until that question
+// is answered, and forever if the answer was no, this makes no request at all:
+// it is the only outbound traffic Nota has.
+func checkForUpdates(ctx context.Context, core *services.Core) {
+	go func() {
+		svc := services.NewUpdateService(core)
+		// Let the window come up first; nothing here is urgent.
+		delay := 10 * time.Second
+		for {
+			timer := time.NewTimer(delay)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return
+			case <-timer.C:
+			}
+			delay = 24 * time.Hour
+			// Scheduled is a no-op, and makes no request, unless the user
+			// agreed to automatic checks.
+			svc.Scheduled()
+		}
+	}()
 }
 
 // windowOptions restores the window where the user left it. With nothing valid

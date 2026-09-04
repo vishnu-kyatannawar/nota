@@ -20,6 +20,7 @@ import (
 	"github.com/vishnu-kyatannawar/nota/internal/config"
 	"github.com/vishnu-kyatannawar/nota/internal/index"
 	"github.com/vishnu-kyatannawar/nota/internal/mdnote"
+	"github.com/vishnu-kyatannawar/nota/internal/update"
 	"github.com/vishnu-kyatannawar/nota/internal/vault"
 	"github.com/vishnu-kyatannawar/nota/internal/workplan"
 )
@@ -35,6 +36,14 @@ type Core struct {
 	index    *index.Index
 	plans    *workplan.Manager
 	version  string
+
+	// update is the release-check state. It lives here rather than on the
+	// service because main.go builds a second AppService over the same Core,
+	// so anything held on a service struct would not be shared.
+	updateMu    sync.Mutex
+	updateState UpdateState
+	updater     *update.Client
+	emitUpdate  func(UpdateState)
 }
 
 // NewCore opens the vault and index described by settings.
@@ -52,6 +61,9 @@ func NewCore(version string, settings config.Settings) (*Core, error) {
 		vault:    v,
 		index:    idx,
 		version:  version,
+		updater:  update.NewClient(version),
+		// No check has run; the frontend shows nothing until one does.
+		updateState: UpdateState{Phase: UpdateIdle},
 		plans: workplan.New(v, workplan.Options{
 			Folder:           settings.WorkplanFolder,
 			CreateOnWeekends: settings.CreateOnWeekends,

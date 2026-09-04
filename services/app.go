@@ -33,6 +33,9 @@ type Info struct {
 	Website     string       `json:"website"`
 	Releases    string       `json:"releases"`
 	Licence     string       `json:"licence"`
+	// UpdateCheck is "ask" until the user has answered whether the app may
+	// look for new releases, then "auto" or "never".
+	UpdateCheck string `json:"updateCheck"`
 }
 
 // GetInfo returns the current application info.
@@ -48,6 +51,7 @@ func (a *AppService) GetInfo() Info {
 		Website:     WebsiteURL,
 		Releases:    ReleasesURL,
 		Licence:     LicenceURL,
+		UpdateCheck: s.Updates.Check,
 	}
 }
 
