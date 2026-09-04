@@ -35,12 +35,35 @@ function useRowFocus<T extends HTMLInputElement | HTMLTextAreaElement>(focused: 
   // A long item wraps, and the field grows to fit it rather than scrolling a
   // single line that hid everything past the first. Sized here because this is
   // where the element is owned.
+  //
+  // Measuring once is not enough. The height depends on where the text wraps,
+  // and that changes after the first paint: the bundled faces arrive later and
+  // reflow it, and the column is a different width whenever the window is
+  // resized, the sidebar moves, or items and notes are put side by side.
   useEffect(() => {
     if (grow === undefined) return;
     const el = input.current;
     if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
+    const fit = () => {
+      el.style.height = "auto";
+      el.style.height = `${el.scrollHeight}px`;
+    };
+    fit();
+
+    // Watch the parent, not the field: resizing the field changes its own
+    // height, which would feed straight back into the observer.
+    const parent = el.parentElement;
+    const observer = parent && typeof ResizeObserver !== "undefined" ? new ResizeObserver(fit) : null;
+    if (parent && observer) observer.observe(parent);
+
+    let live = true;
+    const fonts: FontFaceSet | undefined = document.fonts;
+    if (fonts) void fonts.ready.then(() => { if (live) fit(); });
+
+    return () => {
+      live = false;
+      observer?.disconnect();
+    };
   }, [grow]);
   useEffect(() => {
     if (!focused) return;
@@ -258,7 +281,7 @@ function TaskRow({ item, index, focused, caret, dispatch, dark, allLabels, onMov
               onPaste={onPaste}
               placeholder={index === 0 && item.text === "" ? "Type an item, or ## for a heading…" : ""}
               aria-label="Item text"
-              className={`min-w-[8rem] flex-1 resize-none overflow-hidden bg-transparent py-0.5 leading-[1.5] outline-none placeholder:text-ink-faint ${
+              className={`min-w-[8rem] flex-1 resize-none overflow-hidden break-words bg-transparent py-0.5 leading-[1.5] outline-none placeholder:text-ink-faint ${
                 item.done ? "text-ink-faint line-through" : "text-ink"
               }`}
             />
