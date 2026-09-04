@@ -55,6 +55,9 @@ release's published SHA-256 before installing it.
 - **Trash** — deleted pages and folders sit in Trash for 30 days; restore them from the sidebar.
 - **Recurring items** — daily, weekday or weekly, from a hand-editable file.
 - **Export and restore** — one zip of the whole vault, and back again.
+- **Updates, if you want them** — Nota can ask GitHub whether a newer version exists and install
+  it for you, verifying the published SHA-256 first. It asks once before it ever uses the
+  network, and answering no means it never does. This is the only request Nota makes.
 
 ### Keyboard
 
