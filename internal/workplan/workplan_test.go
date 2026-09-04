@@ -596,3 +596,216 @@ daytype: work
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)
 	}
 }
+
+func TestRepeatingItemsComeFirst(t *testing.T) {
+	m, v := newManager(t)
+	write(t, v, "Workplans/2026-09-01.md", `---
+type: workplan
+date: 2026-09-01
+---
+
+- [ ] Yesterday's leftover <!--n id:A1 t:09:00-->
+`)
+	write(t, v, ".nota/templates/recurring.md", "- [ ] Check email @daily\n")
+
+	if _, err := m.Ensure(date("2026-09-02")); err != nil {
+		t.Fatal(err)
+	}
+	note, err := v.ReadNote("Workplans/2026-09-02.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(note.Items) != 2 {
+		t.Fatalf("got %d items, want 2: %+v", len(note.Items), note.Items)
+	}
+	// What repeats sits above the day's own work.
+	if note.Items[0].Recurring == "" {
+		t.Errorf("first item is %q, want the repeating one", note.Items[0].Text)
+	}
+	if note.Items[1].Text != "Yesterday's leftover" {
+		t.Errorf("second item = %q, want the carried one", note.Items[1].Text)
+	}
+}
+
+func TestARepeatingItemComesBackWhetherOrNotItWasDone(t *testing.T) {
+	for _, done := range []bool{true, false} {
+		name := "undone yesterday"
+		mark := " "
+		if done {
+			name, mark = "done yesterday", "x"
+		}
+		t.Run(name, func(t *testing.T) {
+			m, v := newManager(t)
+			write(t, v, "Workplans/2026-09-01.md", `---
+type: workplan
+date: 2026-09-01
+---
+
+- [`+mark+`] Check email <!--n id:A1 t:09:00 rec:check-email-->
+`)
+			write(t, v, ".nota/templates/recurring.md", "- [ ] Check email <!--n rec:check-email-->\n")
+
+			if _, err := m.Ensure(date("2026-09-02")); err != nil {
+				t.Fatal(err)
+			}
+			note, err := v.ReadNote("Workplans/2026-09-02.md")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(note.Items) != 1 {
+				t.Fatalf("got %d items, want exactly one: %+v", len(note.Items), note.Items)
+			}
+			it := note.Items[0]
+			if it.Done {
+				t.Error("it came back already ticked; each day is a fresh job")
+			}
+			if it.Carried != 0 {
+				// A repeating item is re-seeded, not rolled over, so it must
+				// not collect a carry badge day after day.
+				t.Errorf("carried = %d, want 0", it.Carried)
+			}
+			if it.Recurring != "check-email" {
+				t.Errorf("recurring = %q, want it to stay tied to its template", it.Recurring)
+			}
+		})
+	}
+}
+
+func TestAddTemplateMintsAnIdThatSurvivesRenaming(t *testing.T) {
+	m, _ := newManager(t)
+	tpl, err := m.AddTemplate("Check email")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tpl.ID == "" || tpl.Text != "Check email" || tpl.Cadence != "daily" {
+		t.Fatalf("AddTemplate = %+v", tpl)
+	}
+
+	if err := m.RenameTemplate(tpl.ID, "Check email and Slack"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := m.Templates()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("got %d templates, want 1 — renaming must not make a second", len(got))
+	}
+	if got[0].ID != tpl.ID {
+		t.Errorf("id changed from %q to %q; tomorrow would seed a duplicate", tpl.ID, got[0].ID)
+	}
+	if got[0].Text != "Check email and Slack" {
+		t.Errorf("text = %q", got[0].Text)
+	}
+}
+
+func TestRenameKeepsHowOftenItRepeats(t *testing.T) {
+	m, v := newManager(t)
+	write(t, v, ".nota/templates/recurring.md", "- [ ] Weekly report @weekly:fri\n")
+	got, err := m.Templates()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := m.RenameTemplate(got[0].ID, "Weekly summary"); err != nil {
+		t.Fatal(err)
+	}
+	after, err := m.Templates()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after[0].Cadence != "weekly:fri" {
+		t.Errorf("cadence = %q, want it kept", after[0].Cadence)
+	}
+	if after[0].Text != "Weekly summary" {
+		t.Errorf("text = %q", after[0].Text)
+	}
+}
+
+func TestSeedIntoAddsARepeatingItemToADayThatAlreadyExists(t *testing.T) {
+	m, v := newManager(t)
+	if _, err := m.Ensure(date("2026-09-02")); err != nil {
+		t.Fatal(err)
+	}
+	// Added after today's note was written: Ensure will not seed it again.
+	if _, err := m.AddTemplate("Check email"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.SeedInto(date("2026-09-02")); err != nil {
+		t.Fatal(err)
+	}
+	note, err := v.ReadNote("Workplans/2026-09-02.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(note.Items) != 1 || note.Items[0].Text != "Check email" {
+		t.Fatalf("today does not hold it: %+v", note.Items)
+	}
+	// Running again must not add a second copy.
+	if err := m.SeedInto(date("2026-09-02")); err != nil {
+		t.Fatal(err)
+	}
+	note, _ = v.ReadNote("Workplans/2026-09-02.md")
+	if len(note.Items) != 1 {
+		t.Errorf("seeding twice gave %d items", len(note.Items))
+	}
+}
+
+func TestStoppingARepeatLeavesEarlierWorkplansExactlyAsTheyWere(t *testing.T) {
+	m, v := newManager(t)
+	write(t, v, ".nota/templates/recurring.md", "- [ ] Check email <!--n rec:check-email-->\n")
+	if _, err := m.Ensure(date("2026-09-01")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Ensure(date("2026-09-02")); err != nil {
+		t.Fatal(err)
+	}
+	yesterday, err := v.ReadRaw("Workplans/2026-09-01.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := m.RemoveTemplate("check-email"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.DropFrom(date("2026-09-02"), "check-email"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Yesterday is untouched, byte for byte.
+	if after, _ := v.ReadRaw("Workplans/2026-09-01.md"); after != yesterday {
+		t.Errorf("an earlier workplan changed:\n%s\nwant:\n%s", after, yesterday)
+	}
+	// Today no longer holds it.
+	today, err := v.ReadNote("Workplans/2026-09-02.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, it := range today.Items {
+		if it.Recurring == "check-email" {
+			t.Error("today still holds the item that was stopped")
+		}
+	}
+	// And tomorrow has nothing to seed from.
+	if _, err := m.Ensure(date("2026-09-03")); err != nil {
+		t.Fatal(err)
+	}
+	tomorrow, _ := v.ReadNote("Workplans/2026-09-03.md")
+	for _, it := range tomorrow.Items {
+		if it.Recurring == "check-email" {
+			t.Error("it came back tomorrow after being stopped")
+		}
+	}
+}
+
+func TestRemoveAndRenameOfSomethingThatIsNotThereDoNothing(t *testing.T) {
+	m, _ := newManager(t)
+	if err := m.RemoveTemplate("nope"); err != nil {
+		t.Errorf("RemoveTemplate: %v", err)
+	}
+	if err := m.RenameTemplate("nope", "x"); err != nil {
+		t.Errorf("RenameTemplate: %v", err)
+	}
+	if _, err := m.AddTemplate("   "); err == nil {
+		t.Error("an empty repeating item was added")
+	}
+}

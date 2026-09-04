@@ -119,7 +119,8 @@ func (m *Manager) Ensure(day time.Time) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	note.Items = append(note.Items, seeded...)
+	// What repeats sits at the top, above the day's own work.
+	note.Items = append(seeded, note.Items...)
 
 	if err := m.vault.WriteNote(path, note); err != nil {
 		return "", err
@@ -151,6 +152,12 @@ func (m *Manager) carryForward(day time.Time) ([]mdnote.Item, error) {
 			// that was entirely finished disappears with its heading.
 			h := it
 			heading = &h
+			continue
+		}
+		if it.Recurring != "" {
+			// A repeating item starts each day fresh, ticked or not. Carrying
+			// it would bring yesterday's tick or a growing carry badge with it,
+			// and seedRecurring puts a clean copy at the top instead.
 			continue
 		}
 		if it.Done {
@@ -387,4 +394,156 @@ func dayTypeFor(day time.Time) string {
 		return DayWeekend
 	}
 	return DayWork
+}
+
+// templateNote reads the recurring file for editing. Templates() runs first
+// because it writes back any missing ids, which is what lets every mutation
+// below address a line by a stable id.
+func (m *Manager) templateNote() (*mdnote.Note, error) {
+	if _, err := m.Templates(); err != nil {
+		return nil, err
+	}
+	raw, err := m.vault.ReadRaw(TemplatePath)
+	if errors.Is(err, fs.ErrNotExist) {
+		return &mdnote.Note{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reading recurring templates: %w", err)
+	}
+	note, err := mdnote.Parse(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parsing recurring templates: %w", err)
+	}
+	return note, nil
+}
+
+// AddTemplate adds an item that repeats every day and returns it.
+//
+// The id is minted rather than derived from the text, so renaming the item
+// later cannot turn it into a different one — which would seed a duplicate
+// alongside the original.
+func (m *Manager) AddTemplate(text string) (Template, error) {
+	text = strings.TrimSpace(cadenceToken.ReplaceAllString(text, ""))
+	if text == "" {
+		return Template{}, fmt.Errorf("a repeating item needs some text")
+	}
+	note, err := m.templateNote()
+	if err != nil {
+		return Template{}, err
+	}
+	tpl := Template{ID: m.opts.NewID(), Text: text, Cadence: "daily"}
+	note.Items = append(note.Items, mdnote.Item{Text: text, Recurring: tpl.ID})
+	if err := m.vault.WriteNote(TemplatePath, note); err != nil {
+		return Template{}, fmt.Errorf("saving recurring templates: %w", err)
+	}
+	return tpl, nil
+}
+
+// RemoveTemplate stops an item repeating. Days already written keep their copy;
+// only the template goes, so tomorrow has nothing to seed from.
+func (m *Manager) RemoveTemplate(id string) error {
+	note, err := m.templateNote()
+	if err != nil {
+		return err
+	}
+	kept := make([]mdnote.Item, 0, len(note.Items))
+	for _, it := range note.Items {
+		if it.Recurring == id {
+			continue
+		}
+		kept = append(kept, it)
+	}
+	if len(kept) == len(note.Items) {
+		return nil
+	}
+	note.Items = kept
+	if err := m.vault.WriteNote(TemplatePath, note); err != nil {
+		return fmt.Errorf("saving recurring templates: %w", err)
+	}
+	return nil
+}
+
+// RenameTemplate changes what a repeating item says, keeping its identity and
+// how often it repeats.
+func (m *Manager) RenameTemplate(id, text string) error {
+	text = strings.TrimSpace(cadenceToken.ReplaceAllString(text, ""))
+	if text == "" {
+		return fmt.Errorf("a repeating item needs some text")
+	}
+	note, err := m.templateNote()
+	if err != nil {
+		return err
+	}
+	changed := false
+	for i := range note.Items {
+		it := &note.Items[i]
+		if it.Recurring != id {
+			continue
+		}
+		// The cadence lives in the text as an @token; keep whatever was there.
+		cadence := cadenceToken.FindString(it.Text)
+		next := text + cadence
+		if next != it.Text {
+			it.Text = next
+			changed = true
+		}
+	}
+	if !changed {
+		return nil
+	}
+	if err := m.vault.WriteNote(TemplatePath, note); err != nil {
+		return fmt.Errorf("saving recurring templates: %w", err)
+	}
+	return nil
+}
+
+// SeedInto adds any repeating item due on this day that the day does not
+// already hold, at the top. Ensure only seeds when it creates the note, so this
+// is what makes a newly added repeating item show up today rather than tomorrow.
+func (m *Manager) SeedInto(day time.Time) error {
+	path := m.PathFor(day)
+	note, err := m.vault.ReadNote(path)
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", path, err)
+	}
+	seeded, err := m.seedRecurring(day, note.Items)
+	if err != nil {
+		return err
+	}
+	if len(seeded) == 0 {
+		return nil
+	}
+	note.Items = append(seeded, note.Items...)
+	if err := m.vault.WriteNote(path, note); err != nil {
+		return fmt.Errorf("saving %s: %w", path, err)
+	}
+	return nil
+}
+
+// DropFrom removes the item seeded by a template from one day's note. Only that
+// day is opened, so every earlier workplan keeps its copy exactly as written.
+func (m *Manager) DropFrom(day time.Time, id string) error {
+	path := m.PathFor(day)
+	note, err := m.vault.ReadNote(path)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("reading %s: %w", path, err)
+	}
+	kept := make([]mdnote.Item, 0, len(note.Items))
+	for _, it := range note.Items {
+		if it.Recurring == id {
+			continue
+		}
+		kept = append(kept, it)
+	}
+	if len(kept) == len(note.Items) {
+		return nil
+	}
+	note.Items = kept
+	if err := m.vault.WriteNote(path, note); err != nil {
+		return fmt.Errorf("saving %s: %w", path, err)
+	}
+	return nil
 }

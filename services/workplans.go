@@ -1,7 +1,10 @@
 package services
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
+	"strings"
 	"time"
 
 	"github.com/vishnu-kyatannawar/nota/internal/index"
@@ -93,6 +96,7 @@ func (w *WorkplanService) SaveItems(path string, items []ItemInput) ([]mdnote.It
 	if err != nil {
 		return nil, err
 	}
+	w.syncRepeatingText(path, saved)
 	if saved == nil {
 		saved = []mdnote.Item{}
 	}
@@ -170,6 +174,107 @@ func (w *WorkplanService) SetDayType(path, dayType string) error {
 		return err
 	}
 	return w.core.index.Update(path, note)
+}
+
+// Repeating returns the items that repeat, for the section at the top of a
+// workplan.
+func (w *WorkplanService) Repeating() ([]workplan.Template, error) {
+	w.core.mu.Lock()
+	defer w.core.mu.Unlock()
+	tpls, err := w.core.plans.Templates()
+	if err != nil {
+		return nil, err
+	}
+	if tpls == nil {
+		tpls = []workplan.Template{}
+	}
+	return tpls, nil
+}
+
+// AddRepeating makes an item repeat every day, and puts it into today as well —
+// waiting until tomorrow to see something you just added would be strange.
+func (w *WorkplanService) AddRepeating(text string) error {
+	w.core.mu.Lock()
+	defer w.core.mu.Unlock()
+
+	if _, err := w.core.plans.AddTemplate(text); err != nil {
+		return err
+	}
+	return w.seedToday()
+}
+
+// StopRepeating stops an item repeating and takes it out of today. Workplans
+// already written keep their copy: what happened on a day is a record of that
+// day, not something to revise.
+func (w *WorkplanService) StopRepeating(id string) error {
+	w.core.mu.Lock()
+	defer w.core.mu.Unlock()
+
+	if err := w.core.plans.RemoveTemplate(id); err != nil {
+		return err
+	}
+	today := time.Now()
+	if err := w.core.plans.DropFrom(today, id); err != nil {
+		return err
+	}
+	return w.reindex(w.core.plans.PathFor(today))
+}
+
+// seedToday adds anything newly due to today's note, if today has one.
+func (w *WorkplanService) seedToday() error {
+	today := time.Now()
+	path := w.core.plans.PathFor(today)
+	if _, err := w.core.vault.ReadNote(path); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			// A weekend with notes switched off, say. Tomorrow's note seeds it.
+			return nil
+		}
+		return fmt.Errorf("reading %s: %w", path, err)
+	}
+	if err := w.core.plans.SeedInto(today); err != nil {
+		return err
+	}
+	return w.reindex(path)
+}
+
+func (w *WorkplanService) reindex(path string) error {
+	note, err := w.core.vault.ReadNote(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", path, err)
+	}
+	return w.core.index.Update(path, note)
+}
+
+// syncRepeatingText keeps the repeating item in step when its text is edited in
+// today's workplan. Editing the row is how you rename what repeats, so it has
+// to work wherever the edit came from — the row, raw markdown, another editor.
+//
+// Only today: an edit to an earlier workplan is a correction to that day's
+// record, not an instruction about what to do tomorrow.
+func (w *WorkplanService) syncRepeatingText(path string, items []mdnote.Item) {
+	if path != w.core.plans.PathFor(time.Now()) {
+		return
+	}
+	tpls, err := w.core.plans.Templates()
+	if err != nil {
+		return
+	}
+	byID := make(map[string]string, len(tpls))
+	for _, t := range tpls {
+		byID[t.ID] = t.Text
+	}
+	for _, it := range items {
+		if it.Recurring == "" {
+			continue
+		}
+		if was, ok := byID[it.Recurring]; ok && was != it.Text && strings.TrimSpace(it.Text) != "" {
+			// Best effort: a failure here must not fail the save of the note.
+			_ = w.core.plans.RenameTemplate(it.Recurring, it.Text)
+		}
+	}
 }
 
 // Templates returns the configured recurring items.

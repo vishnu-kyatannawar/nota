@@ -26,6 +26,14 @@ import * as workplan$0 from "../internal/workplan/models.js";
 import * as $models from "./models.js";
 
 /**
+ * AddRepeating makes an item repeat every day, and puts it into today as well —
+ * waiting until tomorrow to see something you just added would be strange.
+ */
+export function AddRepeating(text: string): $CancellablePromise<void> {
+    return $Call.ByID(3664247932, text);
+}
+
+/**
  * EnsureToday creates today's workplan if it is missing, rolling unfinished
  * items forward, and returns its path. An empty path means today is a weekend
  * and weekend notes are switched off.
@@ -50,6 +58,14 @@ export function List(): $CancellablePromise<index$0.Workplan[] | null> {
  */
 export function MoveItems($from: string, ids: string[] | null, to: string): $CancellablePromise<string> {
     return $Call.ByID(690008623, $from, ids, to);
+}
+
+/**
+ * Repeating returns the items that repeat, for the section at the top of a
+ * workplan.
+ */
+export function Repeating(): $CancellablePromise<workplan$0.Template[] | null> {
+    return $Call.ByID(3791800849);
 }
 
 /**
@@ -81,6 +97,15 @@ export function SetDayType(path: string, dayType: string): $CancellablePromise<v
  */
 export function SetHours(path: string, hours: string): $CancellablePromise<void> {
     return $Call.ByID(4153139527, path, hours);
+}
+
+/**
+ * StopRepeating stops an item repeating and takes it out of today. Workplans
+ * already written keep their copy: what happened on a day is a record of that
+ * day, not something to revise.
+ */
+export function StopRepeating(id: string): $CancellablePromise<void> {
+    return $Call.ByID(620407881, id);
 }
 
 /**
