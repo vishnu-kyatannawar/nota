@@ -321,3 +321,75 @@ func TestFontsRoundTrip(t *testing.T) {
 		t.Errorf("Fonts = %+v, want %+v", got.Fonts, want.Fonts)
 	}
 }
+
+func TestUpdatesDefaultToAskingFirst(t *testing.T) {
+	// The app makes no network request until the user has answered, so an
+	// absent setting must mean "ask", never "yes".
+	if got := DefaultSettings().Updates.Check; got != UpdatesAsk {
+		t.Errorf("default update check = %q, want %q", got, UpdatesAsk)
+	}
+}
+
+func TestLoadTreatsAnAbsentUpdateChoiceAsAsk(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	// A settings file written by 4.1.0 or earlier has no updates key at all.
+	if err := os.WriteFile(path, []byte(`{"vaultPath":"/srv/notes","theme":"dark"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Updates.Check != UpdatesAsk {
+		t.Errorf("update check = %q, want %q for a settings file that predates the feature", got.Updates.Check, UpdatesAsk)
+	}
+}
+
+func TestLoadNormalisesAnUnknownUpdateChoice(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{"auto kept", `{"vaultPath":"/srv/notes","updates":{"check":"auto"}}`, UpdatesAuto},
+		{"never kept", `{"vaultPath":"/srv/notes","updates":{"check":"never"}}`, UpdatesNever},
+		{"ask kept", `{"vaultPath":"/srv/notes","updates":{"check":"ask"}}`, UpdatesAsk},
+		{"unknown asks", `{"vaultPath":"/srv/notes","updates":{"check":"yes-please"}}`, UpdatesAsk},
+		{"empty asks", `{"vaultPath":"/srv/notes","updates":{}}`, UpdatesAsk},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "settings.json")
+			if err := os.WriteFile(path, []byte(tt.raw), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			got, err := Load(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Updates.Check != tt.want {
+				t.Errorf("update check = %q, want %q", got.Updates.Check, tt.want)
+			}
+		})
+	}
+}
+
+func TestUpdatesRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	want := DefaultSettings()
+	want.VaultPath = filepath.Join(dir, "Notes")
+	want.Updates = Updates{Check: UpdatesAuto, LastCheck: "2026-09-04T09:00:00Z"}
+
+	if err := Save(path, want); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Updates != want.Updates {
+		t.Errorf("Updates = %+v, want %+v", got.Updates, want.Updates)
+	}
+}

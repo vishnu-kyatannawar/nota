@@ -36,6 +36,45 @@ type Fonts struct {
 	Size  string `json:"size"`
 }
 
+// What the update check may be set to.
+const (
+	// UpdatesAsk is the state before the user has answered: the app has not
+	// contacted the network and will not until it is told to.
+	UpdatesAsk = "ask"
+	// UpdatesAuto checks on launch and once a day.
+	UpdatesAuto = "auto"
+	// UpdatesNever checks only when the user presses Check now.
+	UpdatesNever = "never"
+)
+
+// Updates controls whether the app looks for new releases. Nota makes no
+// network requests of any other kind, so this single field is the whole of its
+// outbound traffic — which is why it starts at "ask" rather than at a default
+// somebody has to discover and turn off.
+type Updates struct {
+	// Check is "ask" until the user answers, then "auto" or "never".
+	Check string `json:"check"`
+	// LastCheck is when the last successful check ran, RFC 3339, so relaunching
+	// repeatedly does not re-ask GitHub each time. Empty until the first one.
+	LastCheck string `json:"lastCheck,omitempty"`
+}
+
+// DefaultUpdates leaves the choice to the user.
+func DefaultUpdates() Updates {
+	return Updates{Check: UpdatesAsk}
+}
+
+// normalised returns the settings with an unrecognised choice put back to
+// "ask", so a hand-edited or future value asks rather than assuming consent.
+func (u Updates) normalised() Updates {
+	switch u.Check {
+	case UpdatesAsk, UpdatesAuto, UpdatesNever:
+	default:
+		u.Check = UpdatesAsk
+	}
+	return u
+}
+
 // Which ids each slot accepts. Kept in one place so a hand-edited settings file
 // cannot leave the interface with a face that was never bundled.
 var (
@@ -118,6 +157,8 @@ type Settings struct {
 	Window Window `json:"window"`
 	// Fonts is the chosen typography; see Fonts.
 	Fonts Fonts `json:"fonts"`
+	// Updates controls the release check; see Updates.
+	Updates Updates `json:"updates"`
 }
 
 // DefaultSettings returns the configuration used on a first launch.
@@ -128,6 +169,7 @@ func DefaultSettings() Settings {
 		CreateOnWeekends: true,
 		Theme:            ThemeSystem,
 		Fonts:            DefaultFonts(),
+		Updates:          DefaultUpdates(),
 	}
 }
 
@@ -206,6 +248,7 @@ func Load(path string) (Settings, error) {
 		s.Theme = ThemeSystem
 	}
 	s.Fonts = s.Fonts.normalised()
+	s.Updates = s.Updates.normalised()
 	return s, nil
 }
 
