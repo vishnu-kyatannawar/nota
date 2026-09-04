@@ -46,7 +46,13 @@ const view = (reloadToken = 0) =>
       onShellChanged={() => {}} onError={() => {}} />,
   );
 
-const rows = () => screen.getAllByLabelText("Item text") as HTMLInputElement[];
+const rows = () => screen.getAllByLabelText("Item text") as HTMLTextAreaElement[];
+
+/** Puts the caret where it would be if you had just finished typing the row. */
+function atEnd(el: HTMLTextAreaElement) {
+  el.focus();
+  el.setSelectionRange(el.value.length, el.value.length);
+}
 
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -77,6 +83,7 @@ describe("adding an item", () => {
     await settle();
     expect(rows()).toHaveLength(1);
 
+    atEnd(rows()[0]);
     fireEvent.keyDown(rows()[0], { key: "Enter" });
     await settle();
     expect(rows()).toHaveLength(2);
@@ -102,6 +109,7 @@ describe("adding an item", () => {
     await settle();
     expect(rows()).toHaveLength(2);
 
+    atEnd(rows()[0]);
     fireEvent.keyDown(rows()[0], { key: "Enter" });
     await settle(500);
 
@@ -149,9 +157,54 @@ describe("adding an item", () => {
     expect(document.activeElement).toBe(rows()[1]);
   });
 
+  it("folds an item into the one above when Backspace is pressed at its start", async () => {
+    serverItems.length = 0;
+    serverItems.push({ id: "a", text: "hello" }, { id: "b", text: "world" });
+    view();
+    await settle();
+
+    const second = rows()[1];
+    second.focus();
+    second.setSelectionRange(0, 0);
+    fireEvent.keyDown(second, { key: "Backspace" });
+    await settle();
+
+    expect(rows().map((r) => r.value)).toEqual(["helloworld"]);
+    expect(rows()[0].selectionStart).toBe(5);
+  });
+
+  it("leaves the first item alone when Backspace is pressed at its start", async () => {
+    serverItems.length = 0;
+    serverItems.push({ id: "a", text: "only" });
+    view();
+    await settle();
+
+    const first = rows()[0];
+    first.focus();
+    first.setSelectionRange(0, 0);
+    fireEvent.keyDown(first, { key: "Backspace" });
+    await settle();
+
+    expect(rows().map((r) => r.value)).toEqual(["only"]);
+  });
+
+  it("shows a long item on more than one line", async () => {
+    serverItems.length = 0;
+    serverItems.push({ id: "a", text: "a".repeat(400) });
+    view();
+    await settle();
+
+    // A single-line input hid everything past the first line; a wrapping field
+    // is what makes a long item readable.
+    const field = rows()[0];
+    expect(field.tagName).toBe("TEXTAREA");
+    expect(getComputedStyle(field).overflow).not.toBe("scroll");
+  });
+
   it("still saves the row once it has been typed into", async () => {
     view();
     await settle();
+    atEnd(rows()[0]);
     fireEvent.keyDown(rows()[0], { key: "Enter" });
     await settle();
     fireEvent.change(rows()[1], { target: { value: "two" } });

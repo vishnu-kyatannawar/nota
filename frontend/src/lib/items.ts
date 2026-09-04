@@ -8,7 +8,7 @@
  * Everything here is pure so it can be unit-tested without React.
  */
 
-import { joinLabels } from "./labels";
+import { joinLabels, splitLabels } from "./labels";
 
 export type ItemKind = "" | "heading";
 
@@ -51,6 +51,7 @@ export type ItemsAction =
   | { type: "insertAfter"; index: number; text?: string; kind?: ItemKind }
   | { type: "insertAbove"; index: number }
   | { type: "split"; index: number; keep: string; rest: string }
+  | { type: "join"; index: number }
   | { type: "setKind"; index: number; kind: ItemKind }
   | { type: "remove"; index: number }
   | { type: "indent"; index: number; delta: 1 | -1 }
@@ -141,6 +142,32 @@ export function reducer(state: ItemsState, action: ItemsAction): ItemsState {
         // An empty new row changes nothing that can be written to the file.
         dirty: state.dirty || action.rest !== "" || action.keep !== row.text,
       };
+    }
+
+    case "join": {
+      // Backspace at the very start of a row: it joins the row above, which is
+      // the reverse of the split Enter does. The first row has nothing to join,
+      // and a heading is not something to fold text into.
+      const at = action.index;
+      const prev = items[at - 1];
+      const row = items[at];
+      if (at <= 0 || !prev || !row) return state;
+      if (prev.kind === "heading" || row.kind === "heading") return state;
+
+      const a = splitLabels(prev.text);
+      const b = splitLabels(row.text);
+      const next = items.slice();
+      next[at - 1] = {
+        ...prev,
+        text: joinLabels(a.plain + b.plain, [...a.labels, ...b.labels.filter((l) => !a.labels.includes(l))]),
+        body: [...prev.body, ...row.body],
+      };
+      next.splice(at, 1);
+      // Children of the row that went step out, so they keep a valid parent.
+      for (let i = at; i < next.length && next[i].depth > row.depth; i++) {
+        next[i] = { ...next[i], depth: next[i].depth - 1 };
+      }
+      return { items: next, focus: at - 1, caret: a.plain.length, dirty: true };
     }
 
     case "setKind": {

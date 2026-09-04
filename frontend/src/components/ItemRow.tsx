@@ -17,6 +17,7 @@ type Props = {
   allLabels: string[];
   /** Present when this note is not today's workplan. */
   onMoveToToday?: () => void;
+  onError?: (message: string) => void;
 };
 
 /**
@@ -29,8 +30,18 @@ export function ItemRow(props: Props) {
   return props.item.kind === "heading" ? <HeadingRow {...props} /> : <TaskRow {...props} />;
 }
 
-function useRowFocus(focused: boolean, caret: "end" | number) {
-  const input = useRef<HTMLInputElement | null>(null);
+function useRowFocus<T extends HTMLInputElement | HTMLTextAreaElement>(focused: boolean, caret: "end" | number, grow?: string) {
+  const input = useRef<T | null>(null);
+  // A long item wraps, and the field grows to fit it rather than scrolling a
+  // single line that hid everything past the first. Sized here because this is
+  // where the element is owned.
+  useEffect(() => {
+    if (grow === undefined) return;
+    const el = input.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [grow]);
   useEffect(() => {
     if (!focused) return;
     const el = input.current;
@@ -47,7 +58,7 @@ function useRowFocus(focused: boolean, caret: "end" | number) {
 }
 
 function HeadingRow({ item, index, focused, caret, dispatch }: Props) {
-  const input = useRowFocus(focused, caret);
+  const input = useRowFocus<HTMLInputElement>(focused, caret);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -91,17 +102,18 @@ function HeadingRow({ item, index, focused, caret, dispatch }: Props) {
   );
 }
 
-function TaskRow({ item, index, focused, caret, dispatch, dark, allLabels, onMoveToToday }: Props) {
-  const input = useRowFocus(focused, caret);
+function TaskRow({ item, index, focused, caret, dispatch, dark, allLabels, onMoveToToday, onError }: Props) {
   const { plain, labels } = splitLabels(item.text);
 
-  // The input edits `draft`; the saved text is recomposed from it and the chips.
+  // The field edits `draft`; the saved text is recomposed from it and the chips.
   const [draft, setDraft] = useState(plain);
   const [lastPlain, setLastPlain] = useState(plain);
   if (plain !== lastPlain) {
     setLastPlain(plain);
     setDraft(plain);
   }
+
+  const input = useRowFocus<HTMLTextAreaElement>(focused, caret, draft);
 
   const [showBody, setShowBody] = useState(item.body.length > 0);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -157,7 +169,7 @@ function TaskRow({ item, index, focused, caret, dispatch, dark, allLabels, onMov
     }
   };
 
-  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const mod = e.ctrlKey || e.metaKey;
 
     if (suggest && suggestions.length > 0) {
@@ -178,11 +190,17 @@ function TaskRow({ item, index, focused, caret, dispatch, dark, allLabels, onMov
       case "ArrowUp": e.preventDefault(); dispatch({ type: "move", index, delta: -1 }); return;
       case "ArrowDown": e.preventDefault(); dispatch({ type: "move", index, delta: 1 }); return;
       case "Tab": e.preventDefault(); dispatch({ type: "indent", index, delta: e.shiftKey ? -1 : 1 }); return;
-      case "Backspace":
+      case "Backspace": {
+        const el = input.current;
+        const atStart = el ? el.selectionStart === 0 && el.selectionEnd === 0 : false;
         if (mod) { e.preventDefault(); dispatch({ type: "remove", index }); }
         else if (draft === "" && labels.length === 0 && item.body.length === 0) { e.preventDefault(); dispatch({ type: "remove", index }); }
         else if (draft === "" && labels.length > 0) { e.preventDefault(); commitText(removeLabel(item.text, labels[labels.length - 1])); }
+        // At the very start, fold this row into the one above — the reverse of
+        // the split Enter does. The first row has nothing above it.
+        else if (atStart && index > 0) { e.preventDefault(); dispatch({ type: "join", index }); }
         return;
+      }
       case "Delete": if (mod) { e.preventDefault(); dispatch({ type: "remove", index }); } return;
       case "Escape": input.current?.blur(); return;
       case "n": case "N": if (mod && e.shiftKey) { e.preventDefault(); toggleBody(); } return;
@@ -191,7 +209,7 @@ function TaskRow({ item, index, focused, caret, dispatch, dark, allLabels, onMov
     }
   };
 
-  const onPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+  const onPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const text = e.clipboardData.getData("text/plain");
     if (!isMultiLinePaste(text)) return;
     e.preventDefault();
@@ -224,9 +242,10 @@ function TaskRow({ item, index, focused, caret, dispatch, dark, allLabels, onMov
 
         <div className="relative min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
-            <input
+            <textarea
               ref={input}
               {...{ [ITEM_ROW_ATTR]: "" }}
+              rows={1}
               value={draft}
               onChange={(e) => setPlain(e.target.value, e.target.selectionStart ?? e.target.value.length)}
               onFocus={() => { if (!focused) dispatch({ type: "focus", index, caret: input.current?.selectionStart ?? "end" }); }}
@@ -239,7 +258,7 @@ function TaskRow({ item, index, focused, caret, dispatch, dark, allLabels, onMov
               onPaste={onPaste}
               placeholder={index === 0 && item.text === "" ? "Type an item, or ## for a heading…" : ""}
               aria-label="Item text"
-              className={`min-w-[8rem] flex-1 bg-transparent py-0.5 outline-none placeholder:text-ink-faint ${
+              className={`min-w-[8rem] flex-1 resize-none overflow-hidden bg-transparent py-0.5 leading-[1.5] outline-none placeholder:text-ink-faint ${
                 item.done ? "text-ink-faint line-through" : "text-ink"
               }`}
             />
@@ -291,7 +310,14 @@ function TaskRow({ item, index, focused, caret, dispatch, dark, allLabels, onMov
             Notes
             <button type="button" tabIndex={-1} onClick={toggleBody} aria-label="Remove notes" className="ml-auto rounded px-1 text-[13px] normal-case tracking-normal hover:text-danger">×</button>
           </div>
-          <CodeEditor value={item.body.join("\n")} minHeight="4rem" dark={dark} onChange={(v) => dispatch({ type: "setBody", index, body: v === "" ? [] : v.split("\n") })} />
+          <CodeEditor
+            value={item.body.join("\n")}
+            minHeight="4rem"
+            dark={dark}
+            onChange={(v) => dispatch({ type: "setBody", index, body: v === "" ? [] : v.split("\n") })}
+            onEmptyBackspace={toggleBody}
+            onError={onError}
+          />
         </div>
       )}
 

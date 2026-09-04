@@ -311,3 +311,65 @@ describe("Enter", () => {
     expect(run(items, enterSplit(0, "one", 1, [])).dirty).toBe(true);
   });
 });
+
+describe("Backspace at the start of an item", () => {
+  const row = (text: string, extra: Partial<LocalItem> = {}): LocalItem => ({
+    ...blankItem(0, text), id: "a", key: "a", ...extra,
+  });
+  const join = (items: LocalItem[], index: number) =>
+    reducer({ items, focus: index, caret: 0, dirty: false }, { type: "join", index });
+
+  it("folds the item into the one above it", () => {
+    // Nothing is inserted between them, exactly as Backspace joins two lines
+    // anywhere else — and exactly undoing what a split at that point did.
+    const s = join([row("hello "), row("world", { id: "b", key: "b" })], 1);
+    expect(s.items.map((i) => i.text)).toEqual(["helloworld"]);
+  });
+
+  it("puts the caret where the two now meet", () => {
+    const s = join([row("hello"), row("world", { id: "b", key: "b" })], 1);
+    expect(s.focus).toBe(0);
+    expect(s.caret).toBe(5);
+  });
+
+  it("undoes a split, giving back what was there", () => {
+    const start = [row("hello world")];
+    const split = reducer({ items: start, focus: 0, caret: 0, dirty: false }, enterSplit(0, "hello world", 5, []));
+    const back = reducer({ ...split, focus: 1, caret: 0 }, { type: "join", index: 1 });
+    expect(back.items.map((i) => i.text)).toEqual(["helloworld"]);
+  });
+
+  it("does nothing on the first item", () => {
+    const items = [row("only")];
+    const s = join(items, 0);
+    expect(s.items).toBe(items);
+  });
+
+  it("does not fold an item into a heading", () => {
+    const items = [row("Must", { kind: "heading", id: "", key: "h" }), row("task", { id: "b", key: "b" })];
+    const s = join(items, 1);
+    expect(s.items).toBe(items);
+  });
+
+  it("keeps both sets of labels, without repeating one", () => {
+    const items = [row("buy milk #shop"), row("and eggs #shop #urgent", { id: "b", key: "b" })];
+    const s = join(items, 1);
+    expect(s.items[0].text).toBe("buy milkand eggs #shop #urgent");
+  });
+
+  it("keeps the notes from both", () => {
+    const items = [row("one", { body: ["a"] }), row("two", { id: "b", key: "b", body: ["b"] })];
+    const s = join(items, 1);
+    expect(s.items[0].body).toEqual(["a", "b"]);
+  });
+
+  it("steps the children of the folded item out one level", () => {
+    const items = [
+      row("one"),
+      row("two", { id: "b", key: "b" }),
+      row("child", { id: "c", key: "c", depth: 1 }),
+    ];
+    const s = join(items, 1);
+    expect(s.items.map((i) => [i.text, i.depth])).toEqual([["onetwo", 0], ["child", 0]]);
+  });
+});
