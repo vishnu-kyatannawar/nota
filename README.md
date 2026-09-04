@@ -54,6 +54,8 @@ release's published SHA-256 before installing it.
 - **Labels you can take off** — `#label` chips with an ×, and `#` autocompletes existing ones.
 - **Trash** — deleted pages and folders sit in Trash for 30 days; restore them from the sidebar.
 - **Recurring items** — daily, weekday or weekly, from a hand-editable file.
+- **Images** — paste a screenshot into a page's notes or an item's notes. It is written to
+  `attachments/` in your vault and linked as ordinary markdown, so it opens anywhere.
 - **Export and restore** — one zip of the whole vault, and back again.
 - **Updates, if you want them** — Nota can ask GitHub whether a newer version exists and install
   it for you, verifying the published SHA-256 first. It asks once before it ever uses the
@@ -64,6 +66,7 @@ release's published SHA-256 before installing it.
 | Key | Action |
 | --- | --- |
 | `Enter` | New item below; at the start of an item, one above; mid-text, splits it |
+| `Backspace` | At the start of an item, folds it into the one above |
 | `↑` / `↓` | Move between items |
 | `Backspace` on an empty item | Delete it and move up |
 | `Tab` / `Shift+Tab` | Indent / outdent |
