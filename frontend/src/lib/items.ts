@@ -8,6 +8,8 @@
  * Everything here is pure so it can be unit-tested without React.
  */
 
+import { joinLabels } from "./labels";
+
 export type ItemKind = "" | "heading";
 
 export type LocalItem = {
@@ -47,6 +49,8 @@ export type ItemsAction =
   | { type: "toggle"; index: number }
   | { type: "setBody"; index: number; body: string[] }
   | { type: "insertAfter"; index: number; text?: string; kind?: ItemKind }
+  | { type: "insertAbove"; index: number }
+  | { type: "split"; index: number; keep: string; rest: string }
   | { type: "setKind"; index: number; kind: ItemKind }
   | { type: "remove"; index: number }
   | { type: "indent"; index: number; delta: 1 | -1 }
@@ -107,6 +111,36 @@ export function reducer(state: ItemsState, action: ItemsAction): ItemsState {
       const next = items.slice();
       next.splice(at + 1, 0, blankItem(depth, action.text ?? "", action.kind ?? ""));
       return { items: next, focus: at + 1, caret: "end", dirty: true };
+    }
+
+    case "insertAbove": {
+      // Enter at the very start of a row: the row moves down and an empty one
+      // takes its place, with the caret staying on the text — what every
+      // editor does. The new row holds nothing, so the note is no more unsaved
+      // than it already was.
+      const at = action.index;
+      const next = items.slice();
+      next.splice(at, 0, blankItem(items[at]?.depth ?? 0));
+      return { ...state, items: next, focus: at + 1, caret: 0 };
+    }
+
+    case "split": {
+      // Enter anywhere else: whatever was after the caret becomes the next
+      // row. With the caret at the end that is simply an empty row, which is
+      // the ordinary way to add one.
+      const at = action.index;
+      const row = items[at];
+      if (!row) return state;
+      const next = items.slice();
+      next[at] = { ...row, text: action.keep };
+      next.splice(at + 1, 0, blankItem(row.depth, action.rest));
+      return {
+        items: next,
+        focus: at + 1,
+        caret: 0,
+        // An empty new row changes nothing that can be written to the file.
+        dirty: state.dirty || action.rest !== "" || action.keep !== row.text,
+      };
     }
 
     case "setKind": {
@@ -224,6 +258,31 @@ export function toInputs(items: LocalItem[]): { inputs: ItemInput[]; kept: numbe
     kept.push(i);
   });
   return { inputs, kept };
+}
+
+/**
+ * What Enter should do at this caret position.
+ *
+ * At the start of a row that has text, the row moves down and an empty one
+ * appears above it. Anywhere else the row splits there, so the tail becomes the
+ * next row — with the caret at the end that tail is empty, which is the plain
+ * "add another item" case.
+ *
+ * `plain` is what the input shows: the text without its #label chips. The
+ * labels stay with the first half, because they belong to the item that was
+ * already there.
+ */
+export function enterSplit(index: number, plain: string, caret: number, labels: string[]): ItemsAction {
+  const at = Math.max(0, Math.min(caret, plain.length));
+  if (at === 0 && plain !== "") return { type: "insertAbove", index };
+  // Trim the edges the split creates: a row shown without its leading space
+  // must not be stored with one.
+  return {
+    type: "split",
+    index,
+    keep: joinLabels(plain.slice(0, at).trimEnd(), labels),
+    rest: plain.slice(at).trimStart(),
+  };
 }
 
 /** True for a row a save would skip: nothing typed into it yet. */

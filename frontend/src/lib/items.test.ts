@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blankItem, headingShortcut, initialState, keepUnsaved, mergeSaved, reducer, splitPastedList, toInputs, type LocalItem } from "./items";
+import { blankItem, enterSplit, headingShortcut, initialState, keepUnsaved, mergeSaved, reducer, splitPastedList, toInputs, type LocalItem } from "./items";
 
 const item = (text: string, depth = 0, extra: Partial<LocalItem> = {}): LocalItem => ({
   ...blankItem(depth, text),
@@ -238,5 +238,76 @@ describe("keepUnsaved", () => {
     // The rows toInputs drops are the rows keepUnsaved must put back.
     expect(kept).toEqual([0, 2]);
     expect(keepUnsaved(local, [saved("a", "one"), saved("b", "two")]).length).toBe(3);
+  });
+});
+
+describe("Enter", () => {
+  const row = (text: string, extra: Partial<LocalItem> = {}): LocalItem => ({
+    ...blankItem(0, text), id: "a", key: "a", ...extra,
+  });
+  const run = (items: LocalItem[], a: ReturnType<typeof enterSplit>) =>
+    reducer({ items, focus: 0, caret: 0, dirty: false }, a);
+
+  it("at the end adds an empty row below and goes to it", () => {
+    const items = [row("one")];
+    const s = run(items, enterSplit(0, "one", 3, []));
+    expect(s.items.map((i) => i.text)).toEqual(["one", ""]);
+    expect(s.focus).toBe(1);
+  });
+
+  it("at the start pushes the row down and leaves the caret on its text", () => {
+    const items = [row("one")];
+    const s = run(items, enterSplit(0, "one", 0, []));
+    expect(s.items.map((i) => i.text)).toEqual(["", "one"]);
+    // The text moved to index 1, and the caret went with it.
+    expect(s.focus).toBe(1);
+    expect(s.caret).toBe(0);
+    expect(s.items[1]).toBe(items[0]);
+  });
+
+  it("in the middle breaks the row in two at the caret", () => {
+    const items = [row("hello world")];
+    const s = run(items, enterSplit(0, "hello world", 5, []));
+    expect(s.items.map((i) => i.text)).toEqual(["hello", "world"]);
+    expect(s.focus).toBe(1);
+    expect(s.caret).toBe(0);
+  });
+
+  it("gives the second half a fresh identity and leaves the first alone", () => {
+    const items = [row("hello world", { id: "keep", createdAt: "09:00", body: ["note"] })];
+    const s = run(items, enterSplit(0, "hello world", 5, []));
+    expect(s.items[0].id).toBe("keep");
+    expect(s.items[0].body).toEqual(["note"]);
+    // Go mints the id for the new half on save; it is not a copy of the old one.
+    expect(s.items[1].id).toBe("");
+    expect(s.items[1].done).toBe(false);
+    expect(s.items[1].body).toEqual([]);
+  });
+
+  it("keeps the labels on the row that already had them", () => {
+    const items = [row("hello world #work")];
+    const s = run(items, enterSplit(0, "hello world", 5, ["work"]));
+    expect(s.items[0].text).toBe("hello #work");
+    expect(s.items[1].text).toBe("world");
+  });
+
+  it("splits at the same depth", () => {
+    const items = [row("parent"), row("child", { depth: 1, id: "b", key: "b" })];
+    const s = run(items, enterSplit(1, "child", 2, []));
+    expect(s.items[2].depth).toBe(1);
+  });
+
+  it("on an empty row adds another below rather than one above", () => {
+    const items = [row("", { id: "", key: "x" })];
+    const s = run(items, enterSplit(0, "", 0, []));
+    expect(s.items).toHaveLength(2);
+    expect(s.focus).toBe(1);
+  });
+
+  it("marks the note unsaved only when text actually moved", () => {
+    const items = [row("one")];
+    expect(run(items, enterSplit(0, "one", 3, [])).dirty).toBe(false);
+    expect(run(items, enterSplit(0, "one", 0, [])).dirty).toBe(false);
+    expect(run(items, enterSplit(0, "one", 1, [])).dirty).toBe(true);
   });
 });

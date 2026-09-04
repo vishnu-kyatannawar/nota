@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { LocalItem, ItemsAction } from "../lib/items";
-import { headingShortcut, isMultiLinePaste, splitPastedList } from "../lib/items";
+import { enterSplit, headingShortcut, isMultiLinePaste, splitPastedList } from "../lib/items";
 import { addLabel, joinLabels, labelAtCaret, removeLabel, splitLabels } from "../lib/labels";
 import { ITEM_ROW_ATTR, stealsFocus } from "../lib/focus";
 import { CodeEditor } from "./CodeEditor";
@@ -171,7 +171,9 @@ function TaskRow({ item, index, focused, caret, dispatch, dark, allLabels, onMov
       case "Enter":
         e.preventDefault();
         if (mod) dispatch({ type: "toggle", index });
-        else dispatch({ type: "insertAfter", index });
+        // The caret decides: at the start the row moves down, in the middle it
+        // splits there, at the end this is just a new row below.
+        else dispatch(enterSplit(index, draft, input.current?.selectionStart ?? draft.length, labels));
         return;
       case "ArrowUp": e.preventDefault(); dispatch({ type: "move", index, delta: -1 }); return;
       case "ArrowDown": e.preventDefault(); dispatch({ type: "move", index, delta: 1 }); return;

@@ -63,7 +63,7 @@ release's published SHA-256 before installing it.
 
 | Key | Action |
 | --- | --- |
-| `Enter` | New item below, focused and ready to type |
+| `Enter` | New item below; at the start of an item, one above; mid-text, splits it |
 | `↑` / `↓` | Move between items |
 | `Backspace` on an empty item | Delete it and move up |
 | `Tab` / `Shift+Tab` | Indent / outdent |

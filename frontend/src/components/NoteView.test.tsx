@@ -81,11 +81,11 @@ describe("adding an item", () => {
     await settle();
     expect(rows()).toHaveLength(2);
 
-    // The debounced save runs and writes the file.
+    // An empty row has nothing to write, so it does not provoke a save at all.
     await settle(500);
-    expect(saveItems).toHaveBeenCalledOnce();
+    expect(saveItems).not.toHaveBeenCalled();
 
-    // Go's watcher sees our own write and the parent bumps reloadToken.
+    // A reload arrives anyway — an edit on disk, or another note being saved.
     rerender(
       <NoteView path="Lists/a.md" dark={false} reloadToken={1} allLabels={[]} todayPath={null}
         onShellChanged={() => {}} onError={() => {}} />,
@@ -112,6 +112,41 @@ describe("adding an item", () => {
     await settle();
 
     expect(rows().map((r) => r.value)).toEqual(["one", "", "two"]);
+  });
+
+  it("splits the row when Enter is pressed in the middle of it", async () => {
+    serverItems.length = 0;
+    serverItems.push({ id: "a", text: "hello world" });
+    view();
+    await settle();
+
+    const input = rows()[0];
+    input.focus();
+    input.setSelectionRange(5, 5);
+    fireEvent.keyDown(input, { key: "Enter" });
+    await settle();
+
+    expect(rows().map((r) => r.value)).toEqual(["hello", "world"]);
+    // The caret lands at the start of the tail that just moved down.
+    expect(document.activeElement).toBe(rows()[1]);
+    expect(rows()[1].selectionStart).toBe(0);
+  });
+
+  it("pushes the row down when Enter is pressed at the start of it", async () => {
+    serverItems.length = 0;
+    serverItems.push({ id: "a", text: "one" });
+    view();
+    await settle();
+
+    const input = rows()[0];
+    input.focus();
+    input.setSelectionRange(0, 0);
+    fireEvent.keyDown(input, { key: "Enter" });
+    await settle();
+
+    expect(rows().map((r) => r.value)).toEqual(["", "one"]);
+    // The caret stays with the text, which is now the second row.
+    expect(document.activeElement).toBe(rows()[1]);
   });
 
   it("still saves the row once it has been typed into", async () => {
