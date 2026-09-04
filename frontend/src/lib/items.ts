@@ -226,6 +226,45 @@ export function toInputs(items: LocalItem[]): { inputs: ItemInput[]; kept: numbe
   return { inputs, kept };
 }
 
+/** True for a row a save would skip: nothing typed into it yet. */
+function unsaved(it: LocalItem): boolean {
+  return it.text.trim() === "" && it.body.length === 0;
+}
+
+/**
+ * Puts back the rows the user has made but not yet typed into.
+ *
+ * A blank row is local: toInputs skips it, so it is never in the file, so any
+ * reload of the file would drop it. Saving is itself what triggers a reload —
+ * the watcher sees our own write — so without this a new row appears and then
+ * vanishes about a second later, and only typing fast enough to keep the note
+ * dirty saves it.
+ *
+ * Each blank row goes back after whichever saved row it followed, so a row
+ * inserted in the middle stays in the middle.
+ */
+export function keepUnsaved(local: LocalItem[], incoming: LocalItem[]): LocalItem[] {
+  const pending: { after: string | null; item: LocalItem }[] = [];
+  let after: string | null = null;
+  for (const it of local) {
+    if (unsaved(it)) pending.push({ after, item: it });
+    else if (it.id) after = it.id;
+  }
+  if (pending.length === 0) return incoming;
+
+  const present = new Set(incoming.map((it) => it.id).filter(Boolean));
+  const out: LocalItem[] = [];
+  for (const p of pending) if (p.after === null) out.push(p.item);
+  for (const it of incoming) {
+    out.push(it);
+    for (const p of pending) if (p.after !== null && p.after === it.id) out.push(p.item);
+  }
+  // The row it followed is gone — deleted in another window, or on disk. The
+  // row is still the user's, so it goes to the end rather than nowhere.
+  for (const p of pending) if (p.after !== null && !present.has(p.after)) out.push(p.item);
+  return out;
+}
+
 export type SavedMeta = {
   id: string;
   createdAt: string;

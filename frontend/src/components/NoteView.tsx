@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import type { Note } from "../lib/api";
 import { api, HHMM } from "../lib/api";
-import { blankItem, fromServer, initialState, mergeSaved, reducer, toInputs } from "../lib/items";
+import { blankItem, fromServer, initialState, keepUnsaved, mergeSaved, reducer, toInputs } from "../lib/items";
 import { cleanLabel } from "../lib/labels";
 import { stealsFocus } from "../lib/focus";
 import { CodeEditor } from "./CodeEditor";
@@ -42,6 +42,9 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, onShel
   });
   const bodyRef = useRef({ value: "", dirty: false });
   const pathRef = useRef(path);
+  // Which path the current items belong to, so a reload of the same note can
+  // keep its unsaved rows while a switch to another note cannot.
+  const loadedPath = useRef("");
   const inFlight = useRef(false);
   const reloadPending = useRef(false);
   const itemTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -56,8 +59,14 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, onShel
         .then((n) => {
           if (pathRef.current !== p) return;
           setNote(n);
-          const items = fromServer(n.items);
           const showsItems = n.type === "workplan" || n.layout !== "notes";
+          // Reloading this same note must not take away a row the user just
+          // made and has not typed into yet — saving is what triggers the
+          // reload, so that row would vanish under them.
+          const items = loadedPath.current === p
+            ? keepUnsaved(stateRef.current.items, fromServer(n.items))
+            : fromServer(n.items);
+          loadedPath.current = p;
           // An empty items section shows one blank row to type on; it is not
           // an item until it has text, so this does not mark the note dirty.
           dispatch({ type: "replaceAll", items: items.length || !showsItems ? items : [blankItem()] });

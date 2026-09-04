@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blankItem, headingShortcut, initialState, mergeSaved, reducer, splitPastedList, toInputs, type LocalItem } from "./items";
+import { blankItem, headingShortcut, initialState, keepUnsaved, mergeSaved, reducer, splitPastedList, toInputs, type LocalItem } from "./items";
 
 const item = (text: string, depth = 0, extra: Partial<LocalItem> = {}): LocalItem => ({
   ...blankItem(depth, text),
@@ -178,5 +178,65 @@ describe("headings", () => {
     expect(headingShortcut("### ")).toEqual({ level: 3, rest: "" });
     expect(headingShortcut("#notalabel")).toBeNull();
     expect(headingShortcut("plain")).toBeNull();
+  });
+});
+
+describe("keepUnsaved", () => {
+  const saved = (id: string, text: string): LocalItem => ({
+    ...blankItem(0, text), id, key: id,
+  });
+  const blank = (key = "new"): LocalItem => ({ ...blankItem(), key });
+
+  it("keeps a row added at the end", () => {
+    // The reported bug: press Enter, the row shows for a second, then the save
+    // triggers a reload and the row is gone.
+    const local = [saved("a", "one"), blank()];
+    const got = keepUnsaved(local, [saved("a", "one")]);
+    expect(got.map((i) => i.id)).toEqual(["a", ""]);
+    expect(got[1]).toBe(local[1]);
+  });
+
+  it("keeps a row added in the middle, in the middle", () => {
+    const local = [saved("a", "one"), blank(), saved("b", "two")];
+    const got = keepUnsaved(local, [saved("a", "one"), saved("b", "two")]);
+    expect(got.map((i) => i.id)).toEqual(["a", "", "b"]);
+  });
+
+  it("keeps a row added before everything", () => {
+    const local = [blank(), saved("a", "one")];
+    const got = keepUnsaved(local, [saved("a", "one")]);
+    expect(got.map((i) => i.id)).toEqual(["", "a"]);
+  });
+
+  it("keeps several rows, each where it was", () => {
+    const local = [blank("x"), saved("a", "one"), blank("y"), saved("b", "two"), blank("z")];
+    const got = keepUnsaved(local, [saved("a", "one"), saved("b", "two")]);
+    expect(got.map((i) => i.key)).toEqual(["x", "a", "y", "b", "z"]);
+  });
+
+  it("does not lose a row whose neighbour was deleted elsewhere", () => {
+    const local = [saved("a", "one"), blank("x")];
+    const got = keepUnsaved(local, [saved("b", "two")]);
+    expect(got.map((i) => i.key)).toEqual(["b", "x"]);
+  });
+
+  it("returns the incoming list untouched when nothing is pending", () => {
+    const incoming = [saved("a", "one")];
+    expect(keepUnsaved([saved("a", "one")], incoming)).toBe(incoming);
+  });
+
+  it("keeps a row the user has cleared and is retyping", () => {
+    // toInputs skips it too, so the save deletes it and the reload would drop it.
+    const cleared: LocalItem = { ...saved("a", ""), text: "" };
+    const got = keepUnsaved([cleared, saved("b", "two")], [saved("b", "two")]);
+    expect(got.map((i) => i.key)).toEqual(["a", "b"]);
+  });
+
+  it("keeps exactly the rows a save would skip", () => {
+    const local = [saved("a", "one"), blank("x"), saved("b", "two")];
+    const { kept } = toInputs(local);
+    // The rows toInputs drops are the rows keepUnsaved must put back.
+    expect(kept).toEqual([0, 2]);
+    expect(keepUnsaved(local, [saved("a", "one"), saved("b", "two")]).length).toBe(3);
   });
 });
