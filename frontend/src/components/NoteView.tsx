@@ -109,6 +109,9 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, split,
     const s = stateRef.current;
     const p = pathRef.current;
     if (!s.dirty || inFlight.current) return;
+    // The rows on screen still belong to the note we came from: a save armed
+    // before the switch must not write them into the note being opened.
+    if (loadedPath.current !== p) return;
     inFlight.current = true;
     setSaving("saving");
     const { inputs, kept } = toInputs(s.items);
@@ -157,7 +160,9 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, split,
   useEffect(() => {
     const previous = pathRef.current;
     if (previous !== path) {
-      if (stateRef.current.dirty) {
+      // Only flush rows that are actually the note being left; if its own load
+      // never finished there is nothing of its to save.
+      if (stateRef.current.dirty && loadedPath.current === previous) {
         const { inputs } = toInputs(stateRef.current.items);
         void api.saveItems(previous, inputs).then(onShellChanged).catch((e) => onError(String(e)));
       }
@@ -468,7 +473,6 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, split,
                     if (e.key === "Enter") { e.preventDefault(); addRepeating(); }
                     if (e.key === "Escape") setRepeatDraft("");
                   }}
-                  onBlur={addRepeating}
                   placeholder="+ something to do every day…"
                   aria-label="Add an item that repeats every day"
                   className="mt-1 w-full rounded-md px-1.5 py-1 text-sm text-ink outline-none placeholder:text-ink-faint hover:bg-surface-raised focus:bg-surface-raised"

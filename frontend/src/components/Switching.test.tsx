@@ -6,6 +6,9 @@ vi.mock("./CodeEditor", () => ({ CodeEditor: () => <div /> }));
 vi.mock("./NotesEditor", () => ({ NotesEditor: () => <div /> }));
 
 // Two workplans, each with its own items, so switching between them is real.
+// A note whose load is slow enough that a pending save fires first.
+const slowPaths = new Set<string>();
+
 const byPath: Record<string, { id: string; text: string }[]> = {
   "Workplans/2026-09-03.md": [{ id: "a", text: "yesterday" }],
   "Workplans/2026-09-04.md": [{ id: "b", text: "today" }],
@@ -25,7 +28,10 @@ vi.mock("../lib/api", async (orig) => {
   return {
     ...real,
     api: {
-      note: async (p: string) => noteFor(p),
+      note: async (p: string) => {
+        if (slowPaths.has(p)) await new Promise((r) => setTimeout(r, 900));
+        return noteFor(p);
+      },
       saveItems: async (p: string, inputs: { id: string; text: string }[]) => {
         byPath[p] = inputs.map((it, i) => ({ id: it.id || `${p}-new${i}`, text: it.text }));
         return byPath[p].map((it) => ({ ID: it.id, CreatedAt: "09:00", DoneAt: "", From: "", Carried: 0, Recurring: "" }));
@@ -58,6 +64,7 @@ beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   byPath["Workplans/2026-09-03.md"] = [{ id: "a", text: "yesterday" }];
   byPath["Workplans/2026-09-04.md"] = [{ id: "b", text: "today" }];
+  slowPaths.clear();
 });
 afterEach(() => {
   cleanup();
@@ -98,5 +105,40 @@ describe("switching between workplans", () => {
     // Back on yesterday: its one item, and at most the blank row it owns.
     expect(rows().length).toBeLessThanOrEqual(2);
     expect(rows()[0].value).toBe("yesterday");
+  });
+});
+
+describe("a save that is still pending when you switch", () => {
+  it("never writes one workplan's items into another", async () => {
+    const wrote: { path: string; texts: string[] }[] = [];
+    const api = (await import("../lib/api")).api as unknown as {
+      saveItems: (p: string, i: { id: string; text: string }[]) => Promise<unknown>;
+    };
+    const realSave = api.saveItems;
+    api.saveItems = async (p, inputs) => {
+      wrote.push({ path: p, texts: inputs.map((i) => i.text) });
+      return realSave(p, inputs);
+    };
+
+    slowPaths.add("Workplans/2026-09-04.md");
+    const { rerender } = render(show("Workplans/2026-09-03.md", 0));
+    await settle();
+
+    // Type on yesterday, then switch before the debounced save has fired.
+    const field = rows()[0];
+    fireEvent.change(field, { target: { value: "yesterday edited" } });
+    await settle();
+    rerender(show("Workplans/2026-09-04.md", 0));
+    await settle(600);
+    await settle(600);
+
+    api.saveItems = realSave;
+
+    for (const w of wrote) {
+      if (w.path === "Workplans/2026-09-04.md" && w.texts.includes("yesterday edited")) {
+        throw new Error(`yesterday's items were written into today: ${JSON.stringify(w)}`);
+      }
+    }
+    expect(byPath["Workplans/2026-09-04.md"].map((i) => i.text)).toEqual(["today"]);
   });
 });
