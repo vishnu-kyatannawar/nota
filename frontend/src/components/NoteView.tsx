@@ -389,6 +389,7 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, onShel
                   focused={state.focus === index}
                   caret={state.caret}
                   dispatch={dispatch}
+                  onError={onError}
                   dark={dark}
                   allLabels={allLabels}
                   onMoveToToday={isToday ? undefined : () => void moveToToday([index])}
@@ -413,7 +414,7 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, onShel
         {showNotes && (
           <section className={showItems ? "mt-6" : ""}>
             {(isWorkplan || showItems) && <SectionCaption>Notes</SectionCaption>}
-            <NotesEditor value={body} onChange={onBodyChange} onBlur={() => void saveBody()} placeholder={isWorkplan ? "Notes for the day…" : "Write…"} />
+            <NotesEditor value={body} onChange={onBodyChange} onBlur={() => void saveBody()} onError={onError} placeholder={isWorkplan ? "Notes for the day…" : "Write…"} />
           </section>
         )}
 

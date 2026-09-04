@@ -4,6 +4,8 @@ import StarterKit from "@tiptap/starter-kit";
 import { Markdown } from "@tiptap/markdown";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import Placeholder from "@tiptap/extension-placeholder";
+import Image from "@tiptap/extension-image";
+import { imagesIn, storeImages } from "../lib/paste";
 import { common, createLowlight } from "lowlight";
 
 const lowlight = createLowlight(common);
@@ -12,6 +14,7 @@ type Props = {
   value: string;
   onChange: (markdown: string) => void;
   onBlur?: () => void;
+  onError?: (message: string) => void;
   placeholder?: string;
 };
 
@@ -21,11 +24,11 @@ type Props = {
  * back through @tiptap/markdown. Only this section is ever re-serialised —
  * the item lines above it are never touched by this editor.
  */
-export function NotesEditor({ value, onChange, onBlur, placeholder = "Notes…" }: Props) {
-  const handlers = useRef({ onChange, onBlur });
+export function NotesEditor({ value, onChange, onBlur, onError, placeholder = "Notes…" }: Props) {
+  const handlers = useRef({ onChange, onBlur, onError });
   useEffect(() => {
-    handlers.current = { onChange, onBlur };
-  }, [onChange, onBlur]);
+    handlers.current = { onChange, onBlur, onError };
+  }, [onChange, onBlur, onError]);
 
   const editor = useEditor({
     extensions: [
@@ -33,12 +36,54 @@ export function NotesEditor({ value, onChange, onBlur, placeholder = "Notes…" 
       CodeBlockLowlight.configure({ lowlight }),
       Markdown,
       Placeholder.configure({ placeholder }),
+      // The src stays exactly what the markdown says — "attachments/x.png" —
+      // and the app serves that path, so the same link works outside Nota too.
+      Image.configure({ inline: false }),
     ],
     content: value,
     contentType: "markdown",
     onUpdate: ({ editor }) => handlers.current.onChange(editor.getMarkdown()),
     onBlur: () => handlers.current.onBlur?.(),
+    editorProps: {
+      handlePaste: (view, event) => {
+        const files = imagesIn(event.clipboardData);
+        if (files.length === 0) return false;
+        // Go writes the bytes into the vault and gives back the path; until
+        // that returns there is nothing to insert, so the paste is swallowed.
+        void storeImages(files)
+          .then((links) => {
+            const { state } = view;
+            view.dispatch(state.tr.replaceSelectionWith(
+              state.schema.nodes.paragraph.create(null, state.schema.text(links.join(" "))),
+            ));
+            editorRef.current?.commands.setContent(editorRef.current.getMarkdown(), { contentType: "markdown" });
+          })
+          .catch((e) => handlers.current.onError?.(String(e)));
+        return true;
+      },
+      handleDrop: (view, event) => {
+        const files = imagesIn((event as DragEvent).dataTransfer);
+        if (files.length === 0) return false;
+        event.preventDefault();
+        void storeImages(files)
+          .then((links) => {
+            const { state } = view;
+            view.dispatch(state.tr.replaceSelectionWith(
+              state.schema.nodes.paragraph.create(null, state.schema.text(links.join(" "))),
+            ));
+            editorRef.current?.commands.setContent(editorRef.current.getMarkdown(), { contentType: "markdown" });
+          })
+          .catch((e) => handlers.current.onError?.(String(e)));
+        return true;
+      },
+    },
   });
+
+  // The paste handlers run outside React and need the editor they belong to.
+  const editorRef = useRef<typeof editor>(null);
+  useEffect(() => {
+    editorRef.current = editor;
+  }, [editor]);
 
   // Adopt a value that changed elsewhere — a note switch, or the file edited
   // on disk — without disturbing local typing when nothing actually differs.

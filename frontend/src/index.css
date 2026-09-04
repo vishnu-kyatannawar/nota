@@ -124,6 +124,8 @@ input:focus-visible, textarea:focus-visible { outline-offset: 0; }
 /* Tiptap notes editor: the app's type scale, not the browser default. */
 .nota-prose { font-family: var(--font-serif); font-size: calc(var(--font-size-base, 14px) + 1px); line-height: 1.65; color: var(--ink); }
 .nota-prose .tiptap { outline: none; min-height: 6rem; padding: 4px 2px; }
+.nota-prose img { max-width: 100%; max-height: 28rem; border-radius: 6px; display: block; margin: .6rem 0; }
+.nota-prose img.ProseMirror-selectednode { outline: 2px solid var(--accent); }
 .nota-prose h1 { font-size: 1.35rem; font-weight: 700; margin: 1rem 0 .4rem; letter-spacing: -.01em; }
 .nota-prose h2 { font-size: 1.15rem; font-weight: 650; margin: .9rem 0 .35rem; }
 .nota-prose h3 { font-size: 1rem; font-weight: 650; margin: .8rem 0 .3rem; }

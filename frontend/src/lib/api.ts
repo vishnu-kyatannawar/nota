@@ -7,6 +7,7 @@ import {
   SearchService,
   BackupService,
   UpdateService,
+  AttachmentService,
 } from "../../bindings/github.com/vishnu-kyatannawar/nota/services";
 import type { Theme } from "./theme";
 import type { Fonts } from "./fonts";
@@ -99,6 +100,9 @@ export const api = {
   checkUpdate: (manual: boolean) => UpdateService.Check(manual) as Promise<UpdateState>,
   installUpdate: () => UpdateService.Install() as Promise<UpdateState>,
   setUpdateCheck: (check: UpdateCheck) => UpdateService.SetPreference(check),
+
+  /** Stores a pasted image and returns the vault path to put in the markdown. */
+  saveAttachment: (ext: string, base64Data: string) => AttachmentService.Save(ext, base64Data),
 
   tree: () => NotesService.Tree() as Promise<Node>,
   note: (path: string) => NotesService.Get(path) as Promise<Note>,
