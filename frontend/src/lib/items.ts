@@ -333,26 +333,29 @@ export function keepUnsaved(local: LocalItem[], incoming: LocalItem[]): LocalIte
   const present = new Set(incoming.map((it) => it.id).filter(Boolean));
 
   // Looking blank is not the same as being absent from the file. A row that
-  // came back from the file with no text is already in `incoming`, and putting
-  // it back would list it twice — again on every reload, which is how a note
-  // filled up with empty rows.
-  const pending: { after: string | null; item: LocalItem }[] = [];
-  let after: string | null = null;
+  // came back with no text is already in `incoming`, and putting it back would
+  // list it twice — again on every reload, which is how a note filled up with
+  // empty rows.
+  //
+  // Position, not identity, decides where each one goes back: a row typed a
+  // moment ago has an id the local list has not caught up with, and anchoring
+  // to the last id we recognised dropped the blank above it instead of below.
+  const pending: { at: number; item: LocalItem }[] = [];
+  let kept = 0;
   for (const it of local) {
-    if (unsaved(it) && (it.id === "" || !present.has(it.id))) pending.push({ after, item: it });
-    else if (it.id) after = it.id;
+    if (unsaved(it) && (it.id === "" || !present.has(it.id))) pending.push({ at: kept, item: it });
+    else kept++;
   }
   if (pending.length === 0) return incoming;
 
   const out: LocalItem[] = [];
-  for (const p of pending) if (p.after === null) out.push(p.item);
-  for (const it of incoming) {
-    out.push(it);
-    for (const p of pending) if (p.after !== null && p.after === it.id) out.push(p.item);
+  let p = 0;
+  for (let i = 0; i <= incoming.length; i++) {
+    while (p < pending.length && pending[p].at === i) out.push(pending[p++].item);
+    if (i < incoming.length) out.push(incoming[i]);
   }
-  // The row it followed is gone — deleted in another window, or on disk. The
-  // row is still the user's, so it goes to the end rather than nowhere.
-  for (const p of pending) if (p.after !== null && !present.has(p.after)) out.push(p.item);
+  // Anything anchored past the end — rows deleted elsewhere — goes last.
+  while (p < pending.length) out.push(pending[p++].item);
   return out;
 }
 

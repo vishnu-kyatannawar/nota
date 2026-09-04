@@ -389,3 +389,32 @@ describe("Backspace at the start of an item", () => {
     expect(s.items.map((i) => [i.text, i.depth])).toEqual([["onetwo", 0], ["child", 0]]);
   });
 });
+
+describe("keepUnsaved position", () => {
+  const saved = (id: string, text: string): LocalItem => ({ ...blankItem(0, text), id, key: id });
+  const typed = (text: string, key: string): LocalItem => ({ ...blankItem(0, text), key });
+  const blank = (key = "new"): LocalItem => ({ ...blankItem(), key });
+
+  it("keeps an empty row below a row that has only just been saved", () => {
+    // The blank was added under a row typed moments ago. Anchoring it to the
+    // last row that already had an identity put it above that row instead.
+    const local = [saved("a", "one"), typed("two", "t"), blank()];
+    const got = keepUnsaved(local, [saved("a", "one"), saved("b", "two")]);
+    expect(got.map((i) => i.text)).toEqual(["one", "two", ""]);
+  });
+
+  it("keeps an empty row in place around a heading, which never has an id", () => {
+    const heading: LocalItem = { ...blankItem(0, "Must", "heading"), key: "h" };
+    const local = [heading, saved("a", "one"), blank()];
+    const got = keepUnsaved(local, [heading, saved("a", "one")]);
+    expect(got.map((i) => i.text)).toEqual(["Must", "one", ""]);
+  });
+
+  it("never lists a row twice, however many times it runs", () => {
+    const heading: LocalItem = { ...blankItem(0, "Must", "heading"), key: "h" };
+    const incoming = [heading, saved("a", "one")];
+    let list: LocalItem[] = [...incoming, blank()];
+    for (let i = 0; i < 5; i++) list = keepUnsaved(list, incoming);
+    expect(list.map((i) => i.text)).toEqual(["Must", "one", ""]);
+  });
+});
