@@ -76,9 +76,12 @@ func run() error {
 			application.NewService(services.NewSearchService(core)),
 			application.NewService(services.NewBackupService(core)),
 			application.NewService(services.NewUpdateService(core)),
+			application.NewService(services.NewAttachmentService(core)),
 		},
 		Assets: application.AssetOptions{
-			Handler: application.AssetFileServerFS(assets),
+			// Pasted images are served from the vault at the same path the
+			// markdown names, so a link works in the app and outside it alike.
+			Handler: services.AttachmentHandler(core, application.AssetFileServerFS(assets)),
 		},
 		Mac: application.MacOptions{
 			ApplicationShouldTerminateAfterLastWindowClosed: true,

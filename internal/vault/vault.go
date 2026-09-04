@@ -474,6 +474,11 @@ func (v *Vault) readDir(abs, rel string) ([]*Node, error) {
 		if strings.HasPrefix(name, ".") {
 			continue
 		}
+		// Pasted images live here. It holds no notes, so it would show as an
+		// empty folder and invite someone to put pages in it.
+		if rel == "" && name == AttachmentDir && e.IsDir() {
+			continue
+		}
 		childRel := name
 		if rel != "" {
 			childRel = rel + "/" + name

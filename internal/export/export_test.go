@@ -218,3 +218,28 @@ func TestDefaultBundleName(t *testing.T) {
 		t.Errorf("BundleName() = %q", got)
 	}
 }
+
+func TestExportCarriesPastedImages(t *testing.T) {
+	v := seed(t)
+	rel, err := v.SaveAttachment(".png", []byte("\x89PNG body"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dest := filepath.Join(t.TempDir(), "bundle.zip")
+	if err := Export(v, dest); err != nil {
+		t.Fatal(err)
+	}
+	r, err := zip.OpenReader(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = r.Close() }()
+
+	for _, f := range r.File {
+		if f.Name == rel {
+			return
+		}
+	}
+	// A backup without the images is a backup that loses the notes' pictures.
+	t.Errorf("%s is missing from the bundle", rel)
+}
