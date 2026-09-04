@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { LocalItem, ItemsAction } from "../lib/items";
 import { headingShortcut, isMultiLinePaste, splitPastedList } from "../lib/items";
 import { addLabel, joinLabels, labelAtCaret, removeLabel, splitLabels } from "../lib/labels";
+import { ITEM_ROW_ATTR, stealsFocus } from "../lib/focus";
 import { CodeEditor } from "./CodeEditor";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { Icon } from "./Icon";
@@ -34,6 +35,10 @@ function useRowFocus(focused: boolean, caret: "end" | number) {
     if (!focused) return;
     const el = input.current;
     if (!el) return;
+    // Moving between rows is the point of the list, so a sibling row is fair
+    // game — but a note finishing its load in the background must not pull the
+    // caret out of the rename box or the notes editor.
+    if (document.activeElement !== el && stealsFocus()) return;
     el.focus();
     const pos = caret === "end" ? el.value.length : Math.min(caret, el.value.length);
     el.setSelectionRange(pos, pos);
@@ -70,6 +75,7 @@ function HeadingRow({ item, index, focused, caret, dispatch }: Props) {
       <Icon name="heading" size={14} className="shrink-0 text-ink-muted" />
       <input
         ref={input}
+        {...{ [ITEM_ROW_ATTR]: "" }}
         value={item.text}
         onChange={(e) => dispatch({ type: "setText", index, text: e.target.value })}
         onFocus={() => { if (!focused) dispatch({ type: "focus", index, caret: input.current?.selectionStart ?? "end" }); }}
@@ -218,6 +224,7 @@ function TaskRow({ item, index, focused, caret, dispatch, dark, allLabels, onMov
           <div className="flex flex-wrap items-center gap-1.5">
             <input
               ref={input}
+              {...{ [ITEM_ROW_ATTR]: "" }}
               value={draft}
               onChange={(e) => setPlain(e.target.value, e.target.selectionStart ?? e.target.value.length)}
               onFocus={() => { if (!focused) dispatch({ type: "focus", index, caret: input.current?.selectionStart ?? "end" }); }}

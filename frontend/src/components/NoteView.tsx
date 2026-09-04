@@ -3,6 +3,7 @@ import type { Note } from "../lib/api";
 import { api, HHMM } from "../lib/api";
 import { blankItem, fromServer, initialState, mergeSaved, reducer, toInputs } from "../lib/items";
 import { cleanLabel } from "../lib/labels";
+import { stealsFocus } from "../lib/focus";
 import { CodeEditor } from "./CodeEditor";
 import { ItemRow } from "./ItemRow";
 import { NotesEditor } from "./NotesEditor";
@@ -60,7 +61,9 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, onShel
           // An empty items section shows one blank row to type on; it is not
           // an item until it has text, so this does not mark the note dirty.
           dispatch({ type: "replaceAll", items: items.length || !showsItems ? items : [blankItem()] });
-          if (items.length === 0 && showsItems) dispatch({ type: "focus", index: 0 });
+          // A load can land while the user is renaming this note in the sidebar;
+          // taking the caret then is what made rename look broken.
+          if (items.length === 0 && showsItems && !stealsFocus()) dispatch({ type: "focus", index: 0 });
           setBody(n.body);
           bodyRef.current = { value: n.body, dirty: false };
         })
@@ -225,7 +228,7 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, onShel
       setNote({ ...note, layout: next });
       if (next !== "notes" && state.items.length === 0) {
         dispatch({ type: "replaceAll", items: [blankItem()] });
-        dispatch({ type: "focus", index: 0 });
+        if (!stealsFocus()) dispatch({ type: "focus", index: 0 });
       }
     });
 
@@ -347,7 +350,7 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, onShel
               if (e.key === "Escape") setLabelDraft("");
             }}
             placeholder="+ label"
-            aria-label="Add a label to this note"
+            aria-label="Add a label to this page"
             className="w-20 bg-transparent text-[11px] text-ink-muted outline-none placeholder:text-ink-faint focus:w-32"
           />
         </div>
