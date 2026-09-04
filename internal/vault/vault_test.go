@@ -458,7 +458,23 @@ func TestTrashListsNewestFirstAndPurgesByAge(t *testing.T) {
 		}
 	}
 	entries, _ := v.ListTrash()
-	if len(entries) != 3 || entries[0].Path != "three.md" || entries[2].Path != "one.md" {
+	if len(entries) != 3 {
+		t.Fatalf("listed %d entries, want 3", len(entries))
+	}
+	// Three deletes in a row can share a millisecond, so give them distinct
+	// ages rather than asserting an order the clock cannot provide.
+	byPath := map[string]string{}
+	for _, e := range entries {
+		byPath[e.Path] = e.ID
+	}
+	if err := v.backdateTrash(byPath["one.md"], 2*time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	if err := v.backdateTrash(byPath["two.md"], time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	entries, _ = v.ListTrash()
+	if entries[0].Path != "three.md" || entries[1].Path != "two.md" || entries[2].Path != "one.md" {
 		t.Fatalf("not newest first: %+v", entries)
 	}
 

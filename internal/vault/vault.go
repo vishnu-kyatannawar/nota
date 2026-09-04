@@ -337,7 +337,15 @@ func (v *Vault) ListTrash() ([]TrashEntry, error) {
 		}
 		out = append(out, meta)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].DeletedAt.After(out[j].DeletedAt) })
+	// Newest first, with the id breaking ties. Two deletes can land in the same
+	// millisecond — the clock is coarse on Windows — and without a tiebreak the
+	// list would reorder itself between calls.
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].DeletedAt.Equal(out[j].DeletedAt) {
+			return out[i].DeletedAt.After(out[j].DeletedAt)
+		}
+		return out[i].ID > out[j].ID
+	})
 	return out, nil
 }
 

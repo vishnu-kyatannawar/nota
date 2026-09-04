@@ -273,11 +273,19 @@ func TestApplyReplacesTheTargetAndLeavesTheRunningBinaryAlone(t *testing.T) {
 	}
 	// Hold the outgoing file open the way a running process holds its own
 	// image: the swap must not disturb what this handle can read.
-	running, err := os.Open(target)
-	if err != nil {
-		t.Fatal(err)
+	//
+	// Only on Unix. Windows lets you rename a running executable but not a file
+	// held by an ordinary handle, so a handle is not a stand-in for a running
+	// image there — that path is exercised by the real thing, not by this test.
+	var running *os.File
+	if runtime.GOOS != "windows" {
+		var err error
+		running, err = os.Open(target)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = running.Close() }()
 	}
-	defer func() { _ = running.Close() }()
 
 	staged := filepath.Join(t.TempDir(), "staged")
 	if err := os.WriteFile(staged, []byte("new"), 0o644); err != nil {
@@ -294,7 +302,7 @@ func TestApplyReplacesTheTargetAndLeavesTheRunningBinaryAlone(t *testing.T) {
 	if string(got) != "new" {
 		t.Errorf("target = %q, want the new binary", got)
 	}
-	if runtime.GOOS != "windows" {
+	if running != nil {
 		still := make([]byte, 3)
 		if _, err := running.ReadAt(still, 0); err != nil {
 			t.Fatal(err)
