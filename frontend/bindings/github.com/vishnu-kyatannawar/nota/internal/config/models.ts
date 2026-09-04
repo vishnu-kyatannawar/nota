@@ -48,6 +48,30 @@ export interface Settings {
      * Fonts is the chosen typography; see Fonts.
      */
     "fonts": Fonts;
+
+    /**
+     * Updates controls the release check; see Updates.
+     */
+    "updates": Updates;
+}
+
+/**
+ * Updates controls whether the app looks for new releases. Nota makes no
+ * network requests of any other kind, so this single field is the whole of its
+ * outbound traffic — which is why it starts at "ask" rather than at a default
+ * somebody has to discover and turn off.
+ */
+export interface Updates {
+    /**
+     * Check is "ask" until the user answers, then "auto" or "never".
+     */
+    "check": string;
+
+    /**
+     * LastCheck is when the last successful check ran, RFC 3339, so relaunching
+     * repeatedly does not re-ask GitHub each time. Empty until the first one.
+     */
+    "lastCheck"?: string;
 }
 
 /**

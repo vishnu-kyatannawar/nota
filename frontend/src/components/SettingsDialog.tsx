@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Dialogs } from "@wailsio/runtime";
-import type { Settings } from "../lib/api";
+import type { Settings, UpdateCheck, UpdateState } from "../lib/api";
 import { api } from "../lib/api";
 import { THEMES, type Theme } from "../lib/theme";
 import { FACES, SIZES, type Fonts, type FontSlot } from "../lib/fonts";
@@ -15,17 +15,21 @@ type Props = {
   onFonts: (f: Fonts) => void;
   onError: (m: string) => void;
   onVaultChanged: () => void;
+  updateCheck: UpdateCheck;
+  onUpdateCheck: (c: UpdateCheck) => void;
 };
 
-export function SettingsDialog({ open, onClose, theme, onTheme, fonts, onFonts, onError, onVaultChanged }: Props) {
+export function SettingsDialog({ open, onClose, theme, onTheme, fonts, onFonts, onError, onVaultChanged, updateCheck, onUpdateCheck }: Props) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [updateNote, setUpdateNote] = useState<string | null>(null);
 
   // Each opening starts with a clean status line.
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
-    if (open) setNote(null);
+    if (open) { setNote(null); setUpdateNote(null); }
   }
 
   useEffect(() => {
@@ -69,6 +73,26 @@ export function SettingsDialog({ open, onClose, theme, onTheme, fonts, onFonts, 
       onVaultChanged();
     } catch (e) {
       onError(String(e));
+    }
+  };
+
+  // Check now works even when automatic checks are off: pressing it is itself
+  // the consent, for this one request.
+  const checkNow = async () => {
+    setChecking(true);
+    setUpdateNote(null);
+    try {
+      const state: UpdateState = await api.checkUpdate(true);
+      setUpdateNote(
+        state.phase === "available" ? `Nota ${state.version} is available.`
+        : state.phase === "current" ? `You are on the latest version (${state.version}).`
+        : state.phase === "failed" ? `Could not check: ${state.message}`
+        : null,
+      );
+    } catch (e) {
+      setUpdateNote(`Could not check: ${String(e)}`);
+    } finally {
+      setChecking(false);
     }
   };
 
@@ -137,6 +161,33 @@ export function SettingsDialog({ open, onClose, theme, onTheme, fonts, onFonts, 
             Create a workplan on weekends too
           </label>
           <p className="mt-1 text-xs text-ink-muted">Rollover carries unfinished items across gaps either way; this only decides whether Saturday and Sunday get a note.</p>
+        </Field>
+
+        <Field label="Updates">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={updateCheck === "auto"}
+              onChange={(e) => onUpdateCheck(e.target.checked ? "auto" : "never")}
+              className="accent-accent"
+            />
+            Check GitHub for new versions
+          </label>
+          <div className="mt-2">
+            <button
+              type="button"
+              onClick={() => void checkNow()}
+              disabled={checking}
+              className="rounded-md border border-border px-3 py-1.5 hover:bg-surface-sunken disabled:opacity-60"
+            >
+              {checking ? "Checking…" : "Check now"}
+            </button>
+          </div>
+          <p className="mt-1 text-xs text-ink-muted">
+            When on, Nota asks GitHub for the latest version at startup and once a day. This is the only network
+            request Nota makes; Check now works either way.
+          </p>
+          {updateNote && <p className="mt-2 text-xs text-ink-muted">{updateNote}</p>}
         </Field>
 
         <Field label="Vault">

@@ -4,5 +4,6 @@
 export type {
     Fonts,
     Settings,
+    Updates,
     Window
 } from "./models.js";

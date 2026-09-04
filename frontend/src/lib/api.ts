@@ -6,6 +6,7 @@ import {
   WorkplanService,
   SearchService,
   BackupService,
+  UpdateService,
 } from "../../bindings/github.com/vishnu-kyatannawar/nota/services";
 import type { Theme } from "./theme";
 import type { Fonts } from "./fonts";
@@ -67,6 +68,21 @@ export type HoursSummary = { from: string; to: string; minutes: number; hours: s
 export type Info = {
   version: string; vaultPath: string; workplanDir: string; theme: Theme; fonts: Fonts;
   repository: string; website: string; releases: string; licence: string;
+  /** "ask" until the user has answered whether the app may check for updates. */
+  updateCheck: UpdateCheck;
+};
+
+export type UpdateCheck = "ask" | "auto" | "never";
+
+/** What the update banner renders from; see services/update.go. */
+export type UpdateState = {
+  phase: "idle" | "checking" | "current" | "available" | "downloading" | "ready" | "failed";
+  version: string;
+  percent: number;
+  message: string;
+  /** False when the binary is not this user's to replace. */
+  canInstall: boolean;
+  releaseUrl: string;
 };
 export type Settings = {
   vaultPath: string; workplanFolder: string; createOnWeekends: boolean; theme: Theme;
@@ -78,6 +94,11 @@ export const api = {
   saveSettings: (s: Settings) => AppService.SaveSettings(s as never),
   setTheme: (theme: Theme) => AppService.SetTheme(theme),
   setFonts: (fonts: Fonts) => AppService.SetFonts(fonts as never),
+
+  updateState: () => UpdateService.State() as Promise<UpdateState>,
+  checkUpdate: (manual: boolean) => UpdateService.Check(manual) as Promise<UpdateState>,
+  installUpdate: () => UpdateService.Install() as Promise<UpdateState>,
+  setUpdateCheck: (check: UpdateCheck) => UpdateService.SetPreference(check),
 
   tree: () => NotesService.Tree() as Promise<Node>,
   note: (path: string) => NotesService.Get(path) as Promise<Note>,

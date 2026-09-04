@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { Events } from "@wailsio/runtime";
-import type { Hit, Info, Label, Node, TrashEntry, Workplan } from "./lib/api";
+import { Browser, Events } from "@wailsio/runtime";
+import type { Hit, Info, Label, Node, TrashEntry, UpdateCheck, UpdateState, Workplan } from "./lib/api";
 import { api } from "./lib/api";
 import { applyTheme, isTheme, resolvedTheme, THEMES, type Theme } from "./lib/theme";
 import { applyFonts, DEFAULT_FONTS, normaliseFonts, type Fonts } from "./lib/fonts";
@@ -11,6 +11,8 @@ import { NoteView } from "./components/NoteView";
 import { AboutDialog } from "./components/AboutDialog";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { ConfirmDialog } from "./components/ConfirmDialog";
+import { Banner } from "./components/Banner";
+import { UpdateConsentDialog } from "./components/UpdateConsentDialog";
 
 export default function App() {
   const [info, setInfo] = useState<Info | null>(null);
@@ -31,6 +33,10 @@ export default function App() {
   const [about, setAbout] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [confirm, setConfirm] = useState<{ kind: "delete"; node: Node } | { kind: "forever"; entry: TrashEntry } | { kind: "empty" } | null>(null);
+
+  const [update, setUpdate] = useState<UpdateState | null>(null);
+  // Dismissing the update notice silences it for this session only.
+  const [updateHidden, setUpdateHidden] = useState(false);
 
   const { expanded, toggle, expand, reveal, renamePrefix, forget } = useExpanded();
 
@@ -117,11 +123,21 @@ export default function App() {
         open(ev.data);
       }
     });
+    Events.On("update:state", (ev) => {
+      // The generated event type widens phase to string; narrow it here, the
+      // same way api.ts casts its service results.
+      const state = ev?.data as UpdateState | undefined;
+      if (!state) return;
+      setUpdate(state);
+      setUpdateHidden(false);
+    });
     return () => {
       Events.Off("note:changed");
       Events.Off("workplan:rolled");
+      Events.Off("update:state");
     };
   }, [refreshShell, open]);
+
 
   const search = useCallback(async (q: string) => {
     if (!q.trim()) {
@@ -171,6 +187,17 @@ export default function App() {
       fail(String(e));
     }
   }, [expand, fail, refreshShell, reveal, tree]);
+
+  const answerUpdateConsent = useCallback((check: UpdateCheck) => {
+    setInfo((i) => (i ? { ...i, updateCheck: check } : i));
+    api.setUpdateCheck(check).catch((e) => fail(String(e)));
+    // Saying yes should not mean waiting until tomorrow to find out.
+    if (check === "auto") void api.checkUpdate(false).then(setUpdate).catch(() => {});
+  }, [fail]);
+
+  const installUpdate = useCallback(() => {
+    void api.installUpdate().then(setUpdate).catch((e) => fail(String(e)));
+  }, [fail]);
 
   const chooseFonts = useCallback((f: Fonts) => {
     setFonts(f);
@@ -309,6 +336,8 @@ export default function App() {
         onFonts={chooseFonts}
         onError={fail}
         onVaultChanged={() => { void refreshShell(); setReloadToken((n) => n + 1); }}
+        updateCheck={info?.updateCheck ?? "ask"}
+        onUpdateCheck={answerUpdateConsent}
       />
       <ConfirmDialog
         open={confirm !== null}
@@ -335,12 +364,47 @@ export default function App() {
         onCancel={() => setConfirm(null)}
       />
 
-      {error && (
-        <div role="alert" className="fixed bottom-4 right-4 z-50 max-w-md rounded-md border border-danger/40 bg-surface-raised p-3 text-xs text-danger shadow-lg">
-          {error}
-          <button type="button" onClick={() => setError(null)} className="ml-3 underline">dismiss</button>
-        </div>
-      )}
+      <UpdateConsentDialog
+        open={info?.updateCheck === "ask"}
+        onAnswer={answerUpdateConsent}
+      />
+
+      {error && <Banner tone="danger" onDismiss={() => setError(null)}>{error}</Banner>}
+
+      {!error && !updateHidden && update && updateBanner(update, installUpdate, () => setUpdateHidden(true))}
     </div>
   );
+}
+
+/** The corner notice for whatever the updater is doing, or nothing. */
+function updateBanner(u: UpdateState, install: () => void, dismiss: () => void) {
+  switch (u.phase) {
+    case "available":
+      return u.canInstall ? (
+        <Banner tone="accent" action={{ label: "Install", onClick: install }} onDismiss={dismiss}>
+          Nota {u.version} is available.
+        </Banner>
+      ) : (
+        // Not our binary to replace — a package-managed or read-only install.
+        <Banner tone="accent" action={{ label: "Open releases", onClick: () => void Browser.OpenURL(u.releaseUrl) }} onDismiss={dismiss}>
+          Nota {u.version} is available. This copy was not installed by you, so update it the way you installed it.
+        </Banner>
+      );
+    case "downloading":
+      return (
+        <Banner tone="accent" action={{ label: `${u.percent}%`, onClick: () => {}, busy: true }}>
+          Downloading Nota {u.version}…
+        </Banner>
+      );
+    case "ready":
+      return (
+        <Banner tone="accent" onDismiss={dismiss}>
+          Nota {u.version} is installed. Restart Nota to use it.
+        </Banner>
+      );
+    case "failed":
+      return <Banner tone="danger" onDismiss={dismiss}>Update failed: {u.message}</Banner>;
+    default:
+      return null;
+  }
 }

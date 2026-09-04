@@ -28,6 +28,12 @@ export interface Info {
     "website": string;
     "releases": string;
     "licence": string;
+
+    /**
+     * UpdateCheck is "ask" until the user has answered whether the app may
+     * look for new releases, then "auto" or "never".
+     */
+    "updateCheck": string;
 }
 
 /**
@@ -81,4 +87,38 @@ export interface NoteItem {
     "carried": number;
     "recurring": string;
     "body": string[] | null;
+}
+
+/**
+ * UpdateState is everything the frontend needs to render the update banner.
+ */
+export interface UpdateState {
+    "phase": string;
+
+    /**
+     * Version is the newer release, when there is one.
+     */
+    "version": string;
+
+    /**
+     * Percent is download progress, 0 unless downloading.
+     */
+    "percent": number;
+
+    /**
+     * Message explains a failure; empty otherwise.
+     */
+    "message": string;
+
+    /**
+     * CanInstall is false when the binary is not ours to replace — a
+     * package-managed or read-only install — and the UI offers the release
+     * page instead.
+     */
+    "canInstall": boolean;
+
+    /**
+     * ReleaseURL is the page for the newer release.
+     */
+    "releaseUrl": string;
 }

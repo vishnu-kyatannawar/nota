@@ -5,12 +5,14 @@ import * as AppService from "./appservice.js";
 import * as BackupService from "./backupservice.js";
 import * as NotesService from "./notesservice.js";
 import * as SearchService from "./searchservice.js";
+import * as UpdateService from "./updateservice.js";
 import * as WorkplanService from "./workplanservice.js";
 export {
     AppService,
     BackupService,
     NotesService,
     SearchService,
+    UpdateService,
     WorkplanService
 };
 
@@ -19,5 +21,6 @@ export type {
     Info,
     ItemInput,
     Note,
-    NoteItem
+    NoteItem,
+    UpdateState
 } from "./models.js";
