@@ -34,6 +34,11 @@ export interface Info {
      * look for new releases, then "auto" or "never".
      */
     "updateCheck": string;
+
+    /**
+     * Split is how items and notes sit together; see config.Settings.
+     */
+    "split": string;
 }
 
 /**

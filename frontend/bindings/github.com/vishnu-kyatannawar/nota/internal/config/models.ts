@@ -53,6 +53,12 @@ export interface Settings {
      * Updates controls the release check; see Updates.
      */
     "updates": Updates;
+
+    /**
+     * Split is how the items and notes sections sit together on a page that
+     * shows both: "rows" stacks them, "columns" puts them side by side.
+     */
+    "split": string;
 }
 
 /**

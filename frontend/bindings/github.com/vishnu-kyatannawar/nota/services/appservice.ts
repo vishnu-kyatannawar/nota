@@ -58,6 +58,14 @@ export function SetFonts(f: config$0.Fonts): $CancellablePromise<void> {
 }
 
 /**
+ * SetSplit records how the items and notes sections sit together. It is a
+ * display choice like the theme, so it lives beside it rather than in the note.
+ */
+export function SetSplit(split: string): $CancellablePromise<void> {
+    return $Call.ByID(3828383287, split);
+}
+
+/**
  * SetTheme persists the theme choice: system, light or dark.
  */
 export function SetTheme(theme: string): $CancellablePromise<void> {

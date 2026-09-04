@@ -36,6 +36,8 @@ type Info struct {
 	// UpdateCheck is "ask" until the user has answered whether the app may
 	// look for new releases, then "auto" or "never".
 	UpdateCheck string `json:"updateCheck"`
+	// Split is how items and notes sit together; see config.Settings.
+	Split string `json:"split"`
 }
 
 // GetInfo returns the current application info.
@@ -52,6 +54,7 @@ func (a *AppService) GetInfo() Info {
 		Releases:    ReleasesURL,
 		Licence:     LicenceURL,
 		UpdateCheck: s.Updates.Check,
+		Split:       s.Split,
 	}
 }
 
@@ -63,6 +66,17 @@ func (a *AppService) SetTheme(theme string) error {
 		return fmt.Errorf("unknown theme %q", theme)
 	}
 	return a.core.updateSettings(func(s *config.Settings) { s.Theme = theme })
+}
+
+// SetSplit records how the items and notes sections sit together. It is a
+// display choice like the theme, so it lives beside it rather than in the note.
+func (a *AppService) SetSplit(split string) error {
+	switch split {
+	case config.SplitRows, config.SplitColumns:
+	default:
+		return fmt.Errorf("unknown split %q", split)
+	}
+	return a.core.updateSettings(func(s *config.Settings) { s.Split = split })
 }
 
 // SetFonts persists the chosen typography. Unknown ids fall back to the defaults

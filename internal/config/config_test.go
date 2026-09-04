@@ -393,3 +393,55 @@ func TestUpdatesRoundTrip(t *testing.T) {
 		t.Errorf("Updates = %+v, want %+v", got.Updates, want.Updates)
 	}
 }
+
+func TestSplitDefaultsToStacked(t *testing.T) {
+	if got := DefaultSettings().Split; got != SplitRows {
+		t.Errorf("default split = %q, want %q", got, SplitRows)
+	}
+}
+
+func TestLoadNormalisesTheSplit(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{"columns kept", `{"vaultPath":"/srv/notes","split":"columns"}`, SplitColumns},
+		{"rows kept", `{"vaultPath":"/srv/notes","split":"rows"}`, SplitRows},
+		{"absent stacks", `{"vaultPath":"/srv/notes"}`, SplitRows},
+		{"unknown stacks", `{"vaultPath":"/srv/notes","split":"diagonal"}`, SplitRows},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "settings.json")
+			if err := os.WriteFile(path, []byte(tt.raw), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			got, err := Load(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Split != tt.want {
+				t.Errorf("split = %q, want %q", got.Split, tt.want)
+			}
+		})
+	}
+}
+
+func TestSplitRoundTrips(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	want := DefaultSettings()
+	want.VaultPath = filepath.Join(dir, "Notes")
+	want.Split = SplitColumns
+	if err := Save(path, want); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Split != SplitColumns {
+		t.Errorf("split = %q, want %q", got.Split, SplitColumns)
+	}
+}

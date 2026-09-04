@@ -36,6 +36,22 @@ type Fonts struct {
 	Size  string `json:"size"`
 }
 
+// How the items and notes sections sit together when a page shows both.
+const (
+	// SplitRows stacks them, notes under items.
+	SplitRows = "rows"
+	// SplitColumns puts them side by side.
+	SplitColumns = "columns"
+)
+
+// normalisedSplit puts an unrecognised arrangement back to stacked.
+func normalisedSplit(split string) string {
+	if split == SplitColumns {
+		return SplitColumns
+	}
+	return SplitRows
+}
+
 // What the update check may be set to.
 const (
 	// UpdatesAsk is the state before the user has answered: the app has not
@@ -159,6 +175,9 @@ type Settings struct {
 	Fonts Fonts `json:"fonts"`
 	// Updates controls the release check; see Updates.
 	Updates Updates `json:"updates"`
+	// Split is how the items and notes sections sit together on a page that
+	// shows both: "rows" stacks them, "columns" puts them side by side.
+	Split string `json:"split"`
 }
 
 // DefaultSettings returns the configuration used on a first launch.
@@ -170,6 +189,7 @@ func DefaultSettings() Settings {
 		Theme:            ThemeSystem,
 		Fonts:            DefaultFonts(),
 		Updates:          DefaultUpdates(),
+		Split:            SplitRows,
 	}
 }
 
@@ -249,6 +269,7 @@ func Load(path string) (Settings, error) {
 	}
 	s.Fonts = s.Fonts.normalised()
 	s.Updates = s.Updates.normalised()
+	s.Split = normalisedSplit(s.Split)
 	return s, nil
 }
 

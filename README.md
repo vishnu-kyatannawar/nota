@@ -49,6 +49,8 @@ release's published SHA-256 before installing it.
   notes or anywhere on the page.
 - **Notes with formatting** — under the items on every workplan, and on any page: headings,
   bold, italics, bullets, numbered lists, quotes and code, saved as markdown.
+- **Side by side, or stacked** — when a page shows both items and notes, a control in the page
+  header puts them next to each other or one under the other. Workplans too.
 - **Pages that are items, notes, or both** — an Items / Notes / Both toggle on every page.
   Keep a backlog as an item list and move items into today's workplan with one action.
 - **Labels you can take off** — `#label` chips with an ×, and `#` autocompletes existing ones.
