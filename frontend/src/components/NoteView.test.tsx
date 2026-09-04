@@ -7,8 +7,10 @@ vi.mock("./CodeEditor", () => ({ CodeEditor: () => <div /> }));
 vi.mock("./NotesEditor", () => ({ NotesEditor: () => <div data-testid="notes" /> }));
 
 const serverItems: { id: string; text: string }[] = [];
+let noteType = "note";
+let noteLayout = "items";
 const note = () => ({
-  path: "Lists/a.md", id: "n1", type: "note", date: "", hours: "", dayType: "", layout: "items",
+  path: "Lists/a.md", id: "n1", type: noteType, date: "", hours: "", dayType: "", layout: noteLayout,
   labels: [], title: "a", body: "",
   items: serverItems.map((it, i) => ({
     kind: "", level: 0, id: it.id, text: it.text, done: false, depth: 0, body: null,
@@ -40,10 +42,10 @@ vi.mock("../lib/api", async (orig) => {
 
 const { NoteView } = await import("./NoteView");
 
-const view = (reloadToken = 0) =>
+const view = (reloadToken = 0, split: "rows" | "columns" = "rows", onSplit = () => {}) =>
   render(
     <NoteView path="Lists/a.md" dark={false} reloadToken={reloadToken} allLabels={[]} todayPath={null}
-      onShellChanged={() => {}} onError={() => {}} />,
+      split={split} onSplit={onSplit} onShellChanged={() => {}} onError={() => {}} />,
   );
 
 const rows = () => screen.getAllByLabelText("Item text") as HTMLTextAreaElement[];
@@ -55,6 +57,8 @@ function atEnd(el: HTMLTextAreaElement) {
 }
 
 beforeEach(() => {
+  noteType = "note";
+  noteLayout = "items";
   vi.useFakeTimers({ shouldAdvanceTime: true });
   serverItems.length = 0;
   serverItems.push({ id: "a", text: "one" });
@@ -95,7 +99,7 @@ describe("adding an item", () => {
     // A reload arrives anyway — an edit on disk, or another note being saved.
     rerender(
       <NoteView path="Lists/a.md" dark={false} reloadToken={1} allLabels={[]} todayPath={null}
-        onShellChanged={() => {}} onError={() => {}} />,
+        split="rows" onSplit={() => {}} onShellChanged={() => {}} onError={() => {}} />,
     );
     await settle();
 
@@ -115,7 +119,7 @@ describe("adding an item", () => {
 
     rerender(
       <NoteView path="Lists/a.md" dark={false} reloadToken={1} allLabels={[]} todayPath={null}
-        onShellChanged={() => {}} onError={() => {}} />,
+        split="rows" onSplit={() => {}} onShellChanged={() => {}} onError={() => {}} />,
     );
     await settle();
 
@@ -211,5 +215,56 @@ describe("adding an item", () => {
     await settle(500);
 
     expect(serverItems.map((i) => i.text)).toEqual(["one", "two"]);
+  });
+});
+
+describe("arranging items and notes", () => {
+  const arrangement = () => screen.queryByRole("radiogroup", { name: "Arrangement" });
+
+  it("offers the choice on the page itself, not buried in settings", async () => {
+    noteLayout = "both";
+    view();
+    await settle();
+    expect(arrangement()).not.toBeNull();
+    expect(screen.getByRole("radio", { name: /Side by side/ })).toBeTruthy();
+  });
+
+  it("offers it on a workplan too, which always shows both", async () => {
+    noteType = "workplan";
+    noteLayout = "items";
+    view();
+    await settle();
+    expect(arrangement()).not.toBeNull();
+  });
+
+  it("does not offer it when there is only one section on screen", async () => {
+    noteLayout = "items";
+    view();
+    await settle();
+    expect(arrangement()).toBeNull();
+  });
+
+  it("reports the choice so it can be remembered", async () => {
+    noteLayout = "both";
+    const onSplit = vi.fn();
+    view(0, "rows", onSplit);
+    await settle();
+    fireEvent.click(screen.getByRole("radio", { name: /Side by side/ }));
+    expect(onSplit).toHaveBeenCalledWith("columns");
+  });
+
+  it("puts the two sections in a row when side by side is chosen", async () => {
+    noteLayout = "both";
+    const { container } = view(0, "columns");
+    await settle();
+    expect(screen.getByRole("radio", { name: /Side by side/ }).getAttribute("aria-checked")).toBe("true");
+    expect(container.querySelector(".lg\\:flex-row")).not.toBeNull();
+  });
+
+  it("stacks them by default", async () => {
+    noteLayout = "both";
+    const { container } = view(0, "rows");
+    await settle();
+    expect(container.querySelector(".lg\\:flex-row")).toBeNull();
   });
 });

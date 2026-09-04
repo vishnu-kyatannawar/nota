@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import type { Note } from "../lib/api";
+import type { Note, Split } from "../lib/api";
 import { api, HHMM } from "../lib/api";
 import { blankItem, fromServer, initialState, keepUnsaved, mergeSaved, reducer, toInputs } from "../lib/items";
 import { cleanLabel } from "../lib/labels";
 import { stealsFocus } from "../lib/focus";
 import { CodeEditor } from "./CodeEditor";
+import { Icon } from "./Icon";
 import { ItemRow } from "./ItemRow";
 import { NotesEditor } from "./NotesEditor";
 
@@ -15,6 +16,9 @@ type Props = {
   reloadToken: number;
   allLabels: string[];
   todayPath: string | null;
+  /** How the two sections sit together when both are shown. */
+  split: Split;
+  onSplit: (split: Split) => void;
   onShellChanged: () => void;
   onError: (message: string) => void;
 };
@@ -24,7 +28,7 @@ const LAYOUTS = ["items", "notes", "both"] as const;
 const ITEM_SAVE_DELAY = 400;
 const BODY_SAVE_DELAY = 600;
 
-export function NoteView({ path, dark, reloadToken, allLabels, todayPath, onShellChanged, onError }: Props) {
+export function NoteView({ path, dark, reloadToken, allLabels, todayPath, split, onSplit, onShellChanged, onError }: Props) {
   const [note, setNote] = useState<Note | null>(null);
   const [state, dispatch] = useReducer(reducer, initialState);
   const [body, setBody] = useState("");
@@ -208,6 +212,9 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, onShel
   const layout = isWorkplan ? "both" : note.layout;
   const showItems = layout !== "notes";
   const showNotes = layout !== "items";
+  // Side by side only when there are two things to put side by side, and only
+  // when the window is wide enough — below that the panes stack anyway.
+  const columns = split === "columns" && showItems && showNotes;
   const isToday = todayPath === path;
   const open = state.items.filter((i) => i.kind !== "heading" && !i.done && i.text.trim() !== "").length;
   const done = state.items.filter((i) => i.kind !== "heading" && i.done).length;
@@ -329,6 +336,28 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, onShel
           </div>
         )}
 
+        {showItems && showNotes && (
+          <div role="radiogroup" aria-label="Arrangement" className="flex rounded-md border border-border p-0.5">
+            {([
+              ["rows", "Stacked — notes under items"],
+              ["columns", "Side by side — items and notes"],
+            ] as const).map(([id, title]) => (
+              <button
+                key={id}
+                type="button"
+                role="radio"
+                aria-checked={split === id}
+                aria-label={title}
+                title={title}
+                onClick={() => onSplit(id)}
+                className={`rounded px-2 py-1 ${split === id ? "bg-accent-soft text-accent" : "text-ink-muted hover:text-ink"}`}
+              >
+                <Icon name={id} size={14} />
+              </button>
+            ))}
+          </div>
+        )}
+
         <span className="ml-auto flex items-center gap-3 text-xs text-ink-muted">
           {showItems && <span>{open} open · {done} done</span>}
           <span className={`transition ${saving === "saving" ? "text-ink-faint" : saving === "saved" ? "text-success" : "opacity-0"}`}>
@@ -364,8 +393,9 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, onShel
           />
         </div>
 
+        <div className={columns ? "flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8" : ""}>
         {showItems && (
-          <section>
+          <section className={columns ? "min-w-0 flex-1" : undefined}>
             {!isWorkplan && (
               <SectionCaption>
                 Items
@@ -412,11 +442,20 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, onShel
         )}
 
         {showNotes && (
-          <section className={showItems ? "mt-6" : ""}>
+          <section
+            className={
+              columns
+                ? "min-w-0 flex-1 lg:border-l lg:border-border lg:pl-8"
+                : showItems
+                  ? "mt-6"
+                  : ""
+            }
+          >
             {(isWorkplan || showItems) && <SectionCaption>Notes</SectionCaption>}
             <NotesEditor value={body} onChange={onBodyChange} onBlur={() => void saveBody()} onError={onError} placeholder={isWorkplan ? "Notes for the day…" : "Write…"} />
           </section>
         )}
+        </div>
 
         {!showNotes && note.body.trim() !== "" && (
           <Hint onClick={() => void setLayout("both")}>Notes hidden — show</Hint>

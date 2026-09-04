@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Browser, Events } from "@wailsio/runtime";
-import type { Hit, Info, Label, Node, TrashEntry, UpdateCheck, UpdateState, Workplan } from "./lib/api";
+import type { Hit, Info, Label, Node, Split, TrashEntry, UpdateCheck, UpdateState, Workplan } from "./lib/api";
 import { api } from "./lib/api";
 import { applyTheme, isTheme, resolvedTheme, THEMES, type Theme } from "./lib/theme";
 import { applyFonts, DEFAULT_FONTS, normaliseFonts, type Fonts } from "./lib/fonts";
@@ -199,6 +199,11 @@ export default function App() {
     void api.installUpdate().then(setUpdate).catch((e) => fail(String(e)));
   }, [fail]);
 
+  const chooseSplit = useCallback((next: Split) => {
+    setInfo((i) => (i ? { ...i, split: next } : i));
+    api.setSplit(next).catch((e) => fail(String(e)));
+  }, [fail]);
+
   const chooseFonts = useCallback((f: Fonts) => {
     setFonts(f);
     applyFonts(f);
@@ -317,6 +322,8 @@ export default function App() {
           reloadToken={reloadToken}
           allLabels={labels.map((l) => l.name)}
           todayPath={todayPath}
+          split={info?.split ?? "rows"}
+          onSplit={chooseSplit}
           onShellChanged={shellChanged}
           onError={fail}
         />

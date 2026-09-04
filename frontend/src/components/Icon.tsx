@@ -1,4 +1,4 @@
-type Name = "sun" | "moon" | "monitor" | "settings" | "info" | "today" | "check" | "trash" | "more" | "undo" | "heading";
+type Name = "sun" | "moon" | "monitor" | "settings" | "info" | "today" | "check" | "trash" | "more" | "undo" | "heading" | "rows" | "columns";
 
 const PATHS: Record<Name, string> = {
   sun: "M12 3v2M12 19v2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M3 12h2M19 12h2M5.6 18.4 7 17M17 7l1.4-1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z",
@@ -12,6 +12,8 @@ const PATHS: Record<Name, string> = {
   more: "M5 12h.01M12 12h.01M19 12h.01",
   undo: "M9 14 4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3",
   heading: "M6 4v16M18 4v16M6 12h12",
+  rows: "M4 5h16v6H4zM4 13h16v6H4z",
+  columns: "M4 5h6v14H4zM14 5h6v14h-6z",
 };
 
 /** Inline stroke icons that take the current text colour, so contrast follows the token. */
