@@ -7,6 +7,7 @@ import { cleanLabel } from "../lib/labels";
 import { stealsFocus } from "../lib/focus";
 import { CodeEditor } from "./CodeEditor";
 import { Icon } from "./Icon";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { ItemRow } from "./ItemRow";
 import { NotesEditor } from "./NotesEditor";
 
@@ -38,6 +39,8 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, split,
   const [editingHours, setEditingHours] = useState(false);
   const [hoursDraft, setHoursDraft] = useState("");
   const [labelDraft, setLabelDraft] = useState("");
+  const [repeatDraft, setRepeatDraft] = useState("");
+  const [stopping, setStopping] = useState<{ id: string; text: string } | null>(null);
 
   // Refs let the save and reload logic read the latest state without being
   // re-created on every keystroke.
@@ -226,6 +229,13 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, split,
   // Side by side only when there are two things to put side by side, and only
   // when the window is wide enough — below that the panes stack anyway.
   const columns = split === "columns" && showItems && showNotes;
+
+  // A workplan's rows fall into two groups: what repeats every day, and the
+  // day's own work. The index is carried along because every action still
+  // addresses the one flat list underneath.
+  const rows = state.items.map((item, index) => ({ item, index }));
+  const repeating = isWorkplan ? rows.filter((r) => r.item.recurring) : [];
+  const ownWork = isWorkplan ? rows.filter((r) => !r.item.recurring) : rows;
   const isToday = todayPath === path;
   const open = state.items.filter((i) => i.kind !== "heading" && !i.done && i.text.trim() !== "").length;
   const done = state.items.filter((i) => i.kind !== "heading" && i.done).length;
@@ -248,6 +258,32 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, split,
       return;
     }
     await run(() => api.setHours(path, value), () => setNote({ ...note, hours: value, title: `${note.date} - ${value}` }));
+  };
+
+  const row = ({ item, index }: { item: LocalItem; index: number }) => (
+    <ItemRow
+      key={item.key}
+      item={item}
+      index={index}
+      focused={state.focus === index}
+      caret={state.caret}
+      dispatch={dispatch}
+      onError={onError}
+      dark={dark}
+      allLabels={allLabels}
+      onMoveToToday={isToday ? undefined : () => void moveToToday([index])}
+      onStopRepeating={item.recurring ? () => setStopping({ id: item.recurring ?? "", text: item.text }) : undefined}
+    />
+  );
+
+  const addRepeating = () => {
+    const text = repeatDraft.trim();
+    if (!text) return;
+    setRepeatDraft("");
+    run(() => api.addRepeating(text), () => {
+      onShellChanged();
+      void load(pathRef.current);
+    });
   };
 
   const setLayout = (next: (typeof LAYOUTS)[number]) =>
@@ -421,22 +457,26 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, split,
                 )}
               </SectionCaption>
             )}
-            <div className="space-y-px">
-              {state.items.map((item, index) => (
-                <ItemRow
-                  key={item.key}
-                  item={item}
-                  index={index}
-                  focused={state.focus === index}
-                  caret={state.caret}
-                  dispatch={dispatch}
-                  onError={onError}
-                  dark={dark}
-                  allLabels={allLabels}
-                  onMoveToToday={isToday ? undefined : () => void moveToToday([index])}
+            {isWorkplan && (
+              <div className="mb-4">
+                <SectionCaption>Repeats daily</SectionCaption>
+                <div className="space-y-px">{repeating.map(row)}</div>
+                <input
+                  value={repeatDraft}
+                  onChange={(e) => setRepeatDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { e.preventDefault(); addRepeating(); }
+                    if (e.key === "Escape") setRepeatDraft("");
+                  }}
+                  onBlur={addRepeating}
+                  placeholder="+ something to do every day…"
+                  aria-label="Add an item that repeats every day"
+                  className="mt-1 w-full rounded-md px-1.5 py-1 text-sm text-ink outline-none placeholder:text-ink-faint hover:bg-surface-raised focus:bg-surface-raised"
                 />
-              ))}
-            </div>
+              </div>
+            )}
+            {isWorkplan && <SectionCaption>Today</SectionCaption>}
+            <div className="space-y-px">{ownWork.map(row)}</div>
             <button
               type="button"
               onClick={() => dispatch({ type: "insertAfter", index: state.items.length - 1 })}
@@ -485,6 +525,19 @@ export function NoteView({ path, dark, reloadToken, allLabels, todayPath, split,
         {!isToday && <Key k="Ctrl+Shift+M">to today</Key>}
         <Key k="Ctrl+E">markdown</Key>
       </div>
+
+      <ConfirmDialog
+        open={stopping !== null}
+        title="Stop this repeating?"
+        message={`"${stopping?.text ?? ""}" will stop appearing from today onwards. Workplans already written keep it — what you did on a day stays a record of that day.`}
+        confirmLabel="Stop repeating"
+        onConfirm={() => {
+          const id = stopping?.id;
+          setStopping(null);
+          if (id) run(() => api.stopRepeating(id), () => void load(pathRef.current));
+        }}
+        onCancel={() => setStopping(null)}
+      />
     </main>
   );
 }

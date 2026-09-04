@@ -77,6 +77,9 @@ export type Info = {
 
 export type Split = "rows" | "columns";
 
+/** One item that repeats; `id` is what an item's `recurring` marker points at. */
+export type Repeating = { id: string; text: string; cadence: string };
+
 export type UpdateCheck = "ask" | "auto" | "never";
 
 /** What the update banner renders from; see services/update.go. */
@@ -100,6 +103,11 @@ export const api = {
   setTheme: (theme: Theme) => AppService.SetTheme(theme),
   setFonts: (fonts: Fonts) => AppService.SetFonts(fonts as never),
   setSplit: (split: Split) => AppService.SetSplit(split),
+
+  /** The items that repeat every day, shown at the top of a workplan. */
+  repeating: () => WorkplanService.Repeating() as Promise<Repeating[]>,
+  addRepeating: (text: string) => WorkplanService.AddRepeating(text),
+  stopRepeating: (id: string) => WorkplanService.StopRepeating(id),
 
   updateState: () => UpdateService.State() as Promise<UpdateState>,
   checkUpdate: (manual: boolean) => UpdateService.Check(manual) as Promise<UpdateState>,

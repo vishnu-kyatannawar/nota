@@ -18,6 +18,8 @@ type Props = {
   /** Present when this note is not today's workplan. */
   onMoveToToday?: () => void;
   onError?: (message: string) => void;
+  /** Present when this row came from something that repeats every day. */
+  onStopRepeating?: () => void;
 };
 
 /**
@@ -125,7 +127,7 @@ function HeadingRow({ item, index, focused, caret, dispatch }: Props) {
   );
 }
 
-function TaskRow({ item, index, focused, caret, dispatch, dark, allLabels, onMoveToToday, onError }: Props) {
+function TaskRow({ item, index, focused, caret, dispatch, dark, allLabels, onMoveToToday, onError, onStopRepeating }: Props) {
   const { plain, labels } = splitLabels(item.text);
 
   // The field edits `draft`; the saved text is recomposed from it and the chips.
@@ -241,6 +243,7 @@ function TaskRow({ item, index, focused, caret, dispatch, dark, allLabels, onMov
 
   const menuItems: MenuItem[] = [
     { label: showBody ? "Remove notes" : "Add notes", onSelect: toggleBody },
+    ...(onStopRepeating ? [{ label: "Stop repeating…", onSelect: onStopRepeating }] : []),
     { label: "Turn into heading", onSelect: () => dispatch({ type: "setKind", index, kind: "heading" }) },
     ...(onMoveToToday ? [{ label: "Move to today's workplan", onSelect: onMoveToToday }] : []),
     { label: "Delete item", onSelect: () => dispatch({ type: "remove", index }), danger: true },
@@ -312,6 +315,11 @@ function TaskRow({ item, index, focused, caret, dispatch, dark, allLabels, onMov
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5 pt-[1px]">
+          {item.recurring && (
+            <span className="mr-1 text-ink-muted" title="Repeats every day — edit the text here to rename it">
+              <Icon name="repeat" size={13} />
+            </span>
+          )}
           {(item.carried ?? 0) > 0 && (
             <span className="mr-1 rounded-full bg-surface-sunken px-1.5 py-px text-[11px] text-ink-muted" title={`First added on ${item.from}`}>{item.carried}d</span>
           )}
