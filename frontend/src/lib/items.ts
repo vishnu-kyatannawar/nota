@@ -330,15 +330,20 @@ function unsaved(it: LocalItem): boolean {
  * inserted in the middle stays in the middle.
  */
 export function keepUnsaved(local: LocalItem[], incoming: LocalItem[]): LocalItem[] {
+  const present = new Set(incoming.map((it) => it.id).filter(Boolean));
+
+  // Looking blank is not the same as being absent from the file. A row that
+  // came back from the file with no text is already in `incoming`, and putting
+  // it back would list it twice — again on every reload, which is how a note
+  // filled up with empty rows.
   const pending: { after: string | null; item: LocalItem }[] = [];
   let after: string | null = null;
   for (const it of local) {
-    if (unsaved(it)) pending.push({ after, item: it });
+    if (unsaved(it) && (it.id === "" || !present.has(it.id))) pending.push({ after, item: it });
     else if (it.id) after = it.id;
   }
   if (pending.length === 0) return incoming;
 
-  const present = new Set(incoming.map((it) => it.id).filter(Boolean));
   const out: LocalItem[] = [];
   for (const p of pending) if (p.after === null) out.push(p.item);
   for (const it of incoming) {

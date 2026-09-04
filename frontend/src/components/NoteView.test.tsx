@@ -268,3 +268,120 @@ describe("arranging items and notes", () => {
     expect(container.querySelector(".lg\\:flex-row")).toBeNull();
   });
 });
+
+describe("adding and deleting rows", () => {
+  it("adds exactly one row per click of Add item", async () => {
+    serverItems.length = 0;
+    serverItems.push({ id: "a", text: "one" });
+    const { rerender } = view();
+    await settle();
+    expect(rows()).toHaveLength(1);
+
+    fireEvent.click(screen.getByText("Add item"));
+    await settle();
+    expect(rows()).toHaveLength(2);
+
+    // The save fires, the file is written, the watcher reports it back.
+    await settle(500);
+    rerender(
+      <NoteView path="Lists/a.md" dark={false} reloadToken={1} allLabels={[]} todayPath={null}
+        split="rows" onSplit={() => {}} onShellChanged={() => {}} onError={() => {}} />,
+    );
+    await settle();
+    expect(rows()).toHaveLength(2);
+
+    fireEvent.click(screen.getByText("Add item"));
+    await settle(500);
+    rerender(
+      <NoteView path="Lists/a.md" dark={false} reloadToken={2} allLabels={[]} todayPath={null}
+        split="rows" onSplit={() => {}} onShellChanged={() => {}} onError={() => {}} />,
+    );
+    await settle();
+    expect(rows()).toHaveLength(3);
+  });
+
+  it("deletes a row without leaving more behind than it removed", async () => {
+    serverItems.length = 0;
+    serverItems.push({ id: "a", text: "one" }, { id: "b", text: "two" });
+    const { rerender } = view();
+    await settle();
+    expect(rows()).toHaveLength(2);
+
+    const del = screen.getAllByLabelText(/Delete item/)[1];
+    fireEvent.click(del);
+    await settle(500);
+    rerender(
+      <NoteView path="Lists/a.md" dark={false} reloadToken={1} allLabels={[]} todayPath={null}
+        split="rows" onSplit={() => {}} onShellChanged={() => {}} onError={() => {}} />,
+    );
+    await settle();
+    expect(rows().map((r) => r.value)).toEqual(["one"]);
+  });
+
+  it("lets an empty row be deleted", async () => {
+    serverItems.length = 0;
+    serverItems.push({ id: "a", text: "one" });
+    const { rerender } = view();
+    await settle();
+
+    fireEvent.click(screen.getByText("Add item"));
+    await settle(500);
+    rerender(
+      <NoteView path="Lists/a.md" dark={false} reloadToken={1} allLabels={[]} todayPath={null}
+        split="rows" onSplit={() => {}} onShellChanged={() => {}} onError={() => {}} />,
+    );
+    await settle();
+    expect(rows()).toHaveLength(2);
+
+    fireEvent.click(screen.getAllByLabelText(/Delete item/)[1]);
+    await settle(500);
+    rerender(
+      <NoteView path="Lists/a.md" dark={false} reloadToken={2} allLabels={[]} todayPath={null}
+        split="rows" onSplit={() => {}} onShellChanged={() => {}} onError={() => {}} />,
+    );
+    await settle();
+    expect(rows().map((r) => r.value)).toEqual(["one"]);
+  });
+});
+
+describe("repeated reloads", () => {
+  it("does not multiply the empty rows on every reload", async () => {
+    serverItems.length = 0;
+    serverItems.push({ id: "a", text: "one" });
+    const { rerender } = view();
+    await settle();
+
+    fireEvent.click(screen.getByText("Add item"));
+    fireEvent.click(screen.getByText("Add item"));
+    await settle(500);
+    expect(rows()).toHaveLength(3);
+
+    for (let token = 1; token <= 5; token++) {
+      rerender(
+        <NoteView path="Lists/a.md" dark={false} reloadToken={token} allLabels={[]} todayPath={null}
+          split="rows" onSplit={() => {}} onShellChanged={() => {}} onError={() => {}} />,
+      );
+      await settle(500);
+    }
+    expect(rows()).toHaveLength(3);
+  });
+
+  it("does not multiply a row whose text is only spaces", async () => {
+    // A save skips such a row, so it is never in the file — but it looks like
+    // an ordinary item on screen.
+    serverItems.length = 0;
+    serverItems.push({ id: "a", text: "one" }, { id: "b", text: "   " });
+    const { rerender } = view();
+    await settle();
+    expect(rows()).toHaveLength(2);
+
+    for (let token = 1; token <= 4; token++) {
+      rerender(
+        <NoteView path="Lists/a.md" dark={false} reloadToken={token} allLabels={[]} todayPath={null}
+          split="rows" onSplit={() => {}} onShellChanged={() => {}} onError={() => {}} />,
+      );
+      await settle(500);
+    }
+    expect(rows()).toHaveLength(2);
+  });
+});

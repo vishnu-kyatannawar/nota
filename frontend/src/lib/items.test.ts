@@ -220,6 +220,22 @@ describe("keepUnsaved", () => {
     expect(got.map((i) => i.key)).toEqual(["b", "x"]);
   });
 
+  it("leaves a blank row that is already in the file alone", () => {
+    // Looking blank is not the same as being absent. Putting this one back
+    // would list it twice, and again on every reload.
+    const blankInFile = { ...saved("a", ""), text: "  " };
+    const got = keepUnsaved([blankInFile], [blankInFile]);
+    expect(got).toHaveLength(1);
+  });
+
+  it("does not grow the list however many times it runs", () => {
+    const blankInFile = { ...saved("a", ""), text: "" };
+    const incoming = [saved("b", "two"), blankInFile];
+    let list = incoming;
+    for (let i = 0; i < 5; i++) list = keepUnsaved(list, incoming);
+    expect(list).toHaveLength(2);
+  });
+
   it("returns the incoming list untouched when nothing is pending", () => {
     const incoming = [saved("a", "one")];
     expect(keepUnsaved([saved("a", "one")], incoming)).toBe(incoming);
