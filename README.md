@@ -27,11 +27,32 @@ are byte-for-byte what the old one wrote.
 | The interface | Not built yet |
 | Search index, labels, image paste, export/restore, self-update | Deferred until the interface lands |
 
-**The latest release, v4.6.1, is still the Go build.** `install.sh` installs that, and it
-keeps working. There is no released KDE build yet — until there is, the section below is
-how you run the new one.
+**The latest release, v4.6.1, is still the Go build.** There is no released KDE build yet,
+so the installer below builds from source.
 
-## Build
+## Install
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/vishnu-kyatannawar/nota/main/install.sh | sh
+```
+
+No root: everything lands under `~/.local`. The script checks for Qt 6 and every framework
+first and prints your distribution's install line if any are missing, rather than leaving
+CMake to fail halfway.
+
+It builds rather than downloads, and that is deliberate. A KF6 binary links the libraries
+its own distribution ships, so a prebuilt tarball would fail to start on a good share of the
+machines that ran it. Building against the frameworks you already have is the honest version
+of a one-line install for this kind of application.
+
+On Arch and CachyOS the packaged route is better, since pacman then owns the files:
+
+```sh
+curl -fsSLO https://raw.githubusercontent.com/vishnu-kyatannawar/nota/main/PKGBUILD
+makepkg -si
+```
+
+## Build it yourself
 
 ```sh
 git clone https://github.com/vishnu-kyatannawar/nota.git

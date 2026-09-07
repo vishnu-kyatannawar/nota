@@ -1,105 +1,133 @@
 #!/bin/sh
-# Installs Nota from the latest GitHub release.
+# Installs Nota.
 #
 #   curl -fsSL https://raw.githubusercontent.com/vishnu-kyatannawar/nota/main/install.sh | sh
 #
-# No sudo: the binary lands in ~/.local/bin. The download is checked against the
-# release's published SHA-256 before anything is executed or installed.
+# No sudo: everything lands under ~/.local. Nota is a Qt 6 and KDE Frameworks 6
+# application, and a KF6 binary is not portable between distributions — the
+# libraries it links are the ones the distribution ships — so rather than
+# downloading a binary that would fail to start on half the machines that ran
+# it, this builds from source against the frameworks you already have. That is
+# also why it checks for every one of them up front and prints your
+# distribution's install line instead of leaving cmake to fail halfway.
 set -eu
 
 REPO="vishnu-kyatannawar/nota"
-BIN_DIR="${NOTA_BIN_DIR:-${HOME}/.local/bin}"
-APP_DIR="${HOME}/.local/share/applications"
+PREFIX="${NOTA_PREFIX:-${HOME}/.local}"
+REF="${NOTA_REF:-}"
 
 die() { echo "error: $*" >&2; exit 1; }
-need() { command -v "$1" >/dev/null 2>&1 || die "$1 is required but not installed"; }
-
-need curl
-need tar
+need() { command -v "$1" >/dev/null 2>&1 || missing_tools="${missing_tools:-} $1"; }
 
 # --- platform -----------------------------------------------------------------
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
-case "$os" in
-  linux) ;;
-  darwin) die "macOS builds are not published yet" ;;
-  *) die "unsupported operating system: $os (on Windows use install.ps1)" ;;
-esac
+[ "$os" = "linux" ] || die "Nota is a KDE Plasma application and runs on Linux only (found: $os)"
 
-arch=$(uname -m)
-case "$arch" in
-  x86_64|amd64) arch=amd64 ;;
-  aarch64|arm64) die "arm64 builds are not published yet" ;;
-  *) die "unsupported architecture: $arch" ;;
-esac
-
-# --- runtime dependency -------------------------------------------------------
-# Checked up front so a missing library fails here with a usable message, rather
-# than later as a window that will not open.
-if ! ldconfig -p 2>/dev/null | grep -q 'libwebkitgtk-6\.0\|libwebkit2gtk-4\.1'; then
-  echo "Nota needs the WebKitGTK runtime. Install it with:" >&2
-  if   command -v apt    >/dev/null 2>&1; then echo "  sudo apt install libgtk-4-1 libwebkitgtk-6.0-4" >&2
-  elif command -v dnf    >/dev/null 2>&1; then echo "  sudo dnf install gtk4 webkitgtk6.0" >&2
-  elif command -v pacman >/dev/null 2>&1; then echo "  sudo pacman -S gtk4 webkitgtk-6.0" >&2
-  elif command -v zypper >/dev/null 2>&1; then echo "  sudo zypper install gtk4 webkit2gtk3-soup2" >&2
-  else echo "  (see the README for your distribution)" >&2
-  fi
-  die "missing WebKitGTK"
+# --- what the distribution calls the packages ---------------------------------
+if command -v pacman >/dev/null 2>&1; then
+  install_line="sudo pacman -S --needed cmake extra-cmake-modules ninja git qt6-base qt6-declarative kirigami kirigami-addons ki18n kcoreaddons kconfig kcrash kitemmodels syntax-highlighting kcolorscheme kiconthemes qqc2-desktop-style breeze-icons"
+elif command -v dnf >/dev/null 2>&1; then
+  install_line="sudo dnf install cmake extra-cmake-modules ninja-build git qt6-qtbase-devel qt6-qtdeclarative-devel kf6-kirigami-devel kf6-kirigami-addons-devel kf6-ki18n-devel kf6-kcoreaddons-devel kf6-kconfig-devel kf6-kcrash-devel kf6-kitemmodels-devel kf6-syntax-highlighting-devel kf6-kcolorscheme-devel kf6-kiconthemes-devel qqc2-desktop-style"
+elif command -v apt >/dev/null 2>&1; then
+  install_line="sudo apt install cmake extra-cmake-modules ninja-build git qt6-base-dev qt6-declarative-dev libkf6kirigami-dev libkf6i18n-dev libkf6coreaddons-dev libkf6config-dev libkf6crash-dev libkf6itemmodels-dev libkf6syntaxhighlighting-dev libkf6colorscheme-dev libkf6iconthemes-dev qml6-module-org-kde-kirigami qqc2-desktop-style"
+elif command -v zypper >/dev/null 2>&1; then
+  install_line="sudo zypper install cmake extra-cmake-modules ninja git qt6-base-devel qt6-declarative-devel kf6-kirigami-devel kf6-ki18n-devel kf6-kcoreaddons-devel kf6-kconfig-devel kf6-kcrash-devel kf6-kitemmodels-devel kf6-syntax-highlighting-devel kf6-kcolorscheme-devel kf6-kiconthemes-devel qqc2-desktop-style"
+else
+  install_line="(see https://github.com/${REPO}#build for your distribution)"
 fi
 
-# --- resolve the latest release ----------------------------------------------
-tag=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" |
-      sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n1)
-[ -n "$tag" ] || die "could not determine the latest release of ${REPO}"
+# --- the tools ----------------------------------------------------------------
+missing_tools=""
+need git
+need cmake
+need curl
 
-version=${tag#v}
-asset="nota_${version}_${os}_${arch}.tar.gz"
-base="https://github.com/${REPO}/releases/download/${tag}"
+# --- the frameworks -----------------------------------------------------------
+# KDE Frameworks ship CMake config files rather than pkg-config files, so this
+# looks for the config a find_package() call would.
+cmake_pkg() {
+  for root in /usr/lib /usr/lib64 /usr/lib/x86_64-linux-gnu /usr/local/lib /usr/local/lib64; do
+    [ -f "${root}/cmake/$1/$1Config.cmake" ] && return 0
+  done
+  return 1
+}
 
+missing_pkgs=""
+[ -d /usr/share/ECM/cmake ] || [ -d /usr/share/ECM/modules ] || missing_pkgs="${missing_pkgs} extra-cmake-modules"
+for pkg in Qt6Core Qt6Quick Qt6QuickControls2 Qt6Widgets \
+           KF6CoreAddons KF6I18n KF6Config KF6Crash KF6ItemModels \
+           KF6ColorScheme KF6IconThemes KF6SyntaxHighlighting \
+           KF6Kirigami KF6KirigamiAddons; do
+  cmake_pkg "$pkg" || missing_pkgs="${missing_pkgs} ${pkg}"
+done
+
+if [ -n "${missing_tools# }" ] || [ -n "${missing_pkgs# }" ]; then
+  echo "Nota needs Qt 6.9+ and KDE Frameworks 6.10+ to build." >&2
+  [ -n "${missing_tools# }" ] && echo "  missing tools:      ${missing_tools# }" >&2
+  [ -n "${missing_pkgs# }" ] && echo "  missing frameworks: ${missing_pkgs# }" >&2
+  echo "" >&2
+  echo "Install them with:" >&2
+  echo "  ${install_line}" >&2
+  echo "" >&2
+  echo "then run this again." >&2
+  die "missing build dependencies"
+fi
+
+# --- fetch --------------------------------------------------------------------
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT INT TERM
 
-echo "Downloading Nota ${tag}..."
-curl -fsSL "${base}/${asset}"      -o "${tmp}/${asset}"      || die "download failed: ${base}/${asset}"
-curl -fsSL "${base}/checksums.txt" -o "${tmp}/checksums.txt" || die "could not fetch checksums"
-
-# --- verify before trusting ---------------------------------------------------
-if command -v sha256sum >/dev/null 2>&1; then
-  (cd "$tmp" && grep " ${asset}\$" checksums.txt | sha256sum -c -) >/dev/null ||
-    die "checksum mismatch for ${asset} — refusing to install"
-elif command -v shasum >/dev/null 2>&1; then
-  (cd "$tmp" && grep " ${asset}\$" checksums.txt | shasum -a 256 -c -) >/dev/null ||
-    die "checksum mismatch for ${asset} — refusing to install"
-else
-  die "neither sha256sum nor shasum is available; cannot verify the download"
+if [ -z "$REF" ]; then
+  # The newest release tag, or the default branch when there are no tags yet.
+  REF=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null |
+        sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n1) || REF=""
+  [ -n "$REF" ] || REF="main"
 fi
+
+echo "Fetching Nota (${REF})..."
+git clone --quiet --depth 1 --branch "$REF" "https://github.com/${REPO}.git" "${tmp}/nota" 2>/dev/null ||
+  git clone --quiet --depth 1 "https://github.com/${REPO}.git" "${tmp}/nota" ||
+  die "could not clone https://github.com/${REPO}.git"
+
+# Releases up to v4.6.1 are the Go application, which has no CMake build. Rather
+# than hard-coding a version to skip past, this checks what it actually got: no
+# CMakeLists.txt means the tag predates the rewrite, so fall back to the
+# development branch. Once a KDE release is tagged, the check simply passes.
+if [ ! -f "${tmp}/nota/CMakeLists.txt" ]; then
+  echo "note: release ${REF} predates the KDE rewrite — building the development branch instead"
+  rm -rf "${tmp}/nota"
+  git clone --quiet --depth 1 "https://github.com/${REPO}.git" "${tmp}/nota" ||
+    die "could not clone https://github.com/${REPO}.git"
+  [ -f "${tmp}/nota/CMakeLists.txt" ] || die "no CMake build found in ${REPO}"
+fi
+
+# --- build --------------------------------------------------------------------
+generator=""
+command -v ninja >/dev/null 2>&1 && generator="-G Ninja"
+
+echo "Building..."
+# shellcheck disable=SC2086
+cmake -S "${tmp}/nota" -B "${tmp}/build" ${generator} \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+  -DBUILD_TESTING=OFF >"${tmp}/cmake.log" 2>&1 ||
+  { tail -20 "${tmp}/cmake.log" >&2; die "configuring failed"; }
+
+cmake --build "${tmp}/build" >"${tmp}/build.log" 2>&1 ||
+  { tail -30 "${tmp}/build.log" >&2; die "building failed"; }
 
 # --- install ------------------------------------------------------------------
-tar -xzf "${tmp}/${asset}" -C "$tmp"
-mkdir -p "$BIN_DIR"
-install -m 0755 "${tmp}/nota" "${BIN_DIR}/nota"
+cmake --install "${tmp}/build" >/dev/null || die "installing to ${PREFIX} failed"
 
-ICON_DIR="${HOME}/.local/share/icons/hicolor/256x256/apps"
-if [ -f "${tmp}/nota.png" ]; then
-  mkdir -p "$ICON_DIR"
-  install -m 0644 "${tmp}/nota.png" "${ICON_DIR}/nota.png"
-fi
+command -v update-desktop-database >/dev/null 2>&1 &&
+  update-desktop-database "${PREFIX}/share/applications" 2>/dev/null || true
+command -v gtk-update-icon-cache >/dev/null 2>&1 &&
+  gtk-update-icon-cache -f -t "${PREFIX}/share/icons/hicolor" 2>/dev/null || true
 
-mkdir -p "$APP_DIR"
-cat > "${APP_DIR}/nota.desktop" <<DESKTOP
-[Desktop Entry]
-Type=Application
-Name=Nota
-Comment=Daily workplans and notes, stored as plain markdown
-Exec=${BIN_DIR}/nota
-Icon=nota
-Terminal=false
-Categories=Office;Utility;
-StartupWMClass=nota
-DESKTOP
-command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$APP_DIR" 2>/dev/null || true
+version=$("${PREFIX}/bin/nota" --version 2>/dev/null | head -n1)
+echo "Installed ${version:-Nota} to ${PREFIX}/bin/nota"
 
-echo "Installed Nota ${tag} to ${BIN_DIR}/nota"
 case ":${PATH}:" in
-  *":${BIN_DIR}:"*) ;;
-  *) echo "note: ${BIN_DIR} is not on your PATH — add it to your shell profile" ;;
+  *":${PREFIX}/bin:"*) ;;
+  *) echo "note: ${PREFIX}/bin is not on your PATH — add it to your shell profile" ;;
 esac

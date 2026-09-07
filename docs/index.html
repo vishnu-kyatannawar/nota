@@ -482,43 +482,44 @@
   <div class="wrap">
     <h2>Install</h2>
     <p class="sub">
-      The KDE build is not released yet. Until it is, there are two things you can do: install
-      the previous release, which still works, or build the new one from source.
+      One line, no root. Everything lands under <code>~/.local</code>.
     </p>
 
     <div class="two">
       <div>
-        <p class="eyebrow" style="margin-bottom:12px">Build the KDE version</p>
-        <pre><code>git clone https://github.com/\
-vishnu-kyatannawar/nota.git
-cd nota
-cmake -B build -G Ninja
-cmake --build build
-ctest --test-dir build</code></pre>
-        <p class="sub" style="margin-top:14px;font-size:.86rem">
-          Needs Qt 6.9+, KDE Frameworks 6.10+ and extra-cmake-modules. The
-          <a href="https://github.com/vishnu-kyatannawar/nota#build">README</a> has the one-line
-          dependency command for Arch, Fedora and Debian.
-        </p>
-      </div>
-      <div>
-        <p class="eyebrow" style="margin-bottom:12px">The previous release</p>
+        <p class="eyebrow" style="margin-bottom:12px">Any distribution</p>
         <pre><code>curl -fsSL https://raw.githubusercontent.com/\
 vishnu-kyatannawar/nota/main/install.sh | sh</code></pre>
         <p class="sub" style="margin-top:14px;font-size:.86rem">
-          Installs v4.6.1 to <code>~/.local/bin</code> with a desktop entry, no root, verified
-          against the release's published SHA-256. That build draws itself in a WebKitGTK view,
-          so the script checks for it first and prints the right package name for your
-          distribution. It reads and writes exactly the same vault.
+          Checks for Qt&nbsp;6 and every framework first and prints your distribution's
+          install line if any are missing, then builds and installs with a desktop entry
+          and an icon.
+        </p>
+      </div>
+      <div>
+        <p class="eyebrow" style="margin-bottom:12px">Arch and CachyOS</p>
+        <pre><code>curl -fsSLO https://raw.githubusercontent.com/\
+vishnu-kyatannawar/nota/main/PKGBUILD
+makepkg -si</code></pre>
+        <p class="sub" style="margin-top:14px;font-size:.86rem">
+          The packaged route, so pacman owns the files and <code>pacman -R nota-git</code>
+          removes them again.
         </p>
       </div>
     </div>
 
     <p class="sub" style="margin-top:28px">
-      A one-line install and an Arch package come back once the interface is finished. Windows
-      does not: a Kirigami application there would mean shipping Qt and every framework for a
-      window with no Breeze and no Plasma integration, which is the opposite of the point.
-      Windows users should stay on v4.6.1.
+      It builds rather than downloading a binary, and that is deliberate: a KDE Frameworks
+      application links the libraries its own distribution ships, so a prebuilt tarball
+      would fail to start on a good share of the machines that ran it. Building against the
+      frameworks you already have is the honest version of a one-line install for this kind
+      of program. Needs Qt&nbsp;6.9+ and KDE&nbsp;Frameworks&nbsp;6.10+.
+    </p>
+
+    <p class="sub" style="margin-top:18px">
+      Windows ends at v4.6.1. A Kirigami application there would mean shipping Qt and every
+      framework for a window with no Breeze and no Plasma integration, which is the opposite
+      of the point.
     </p>
   </div>
 </section>
