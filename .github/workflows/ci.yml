@@ -20,7 +20,7 @@ jobs:
             git cmake extra-cmake-modules ninja \
             qt6-base qt6-declarative qt6-svg \
             kirigami kirigami-addons ki18n kcoreaddons kconfig kcrash \
-            kitemmodels ksyntaxhighlighting kcolorscheme kiconthemes \
+            kitemmodels syntax-highlighting kcolorscheme kiconthemes \
             qqc2-desktop-style breeze-icons \
             appstream desktop-file-utils
 

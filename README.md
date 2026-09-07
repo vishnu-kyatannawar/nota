@@ -45,7 +45,7 @@ Requires Qt 6.9+, KDE Frameworks 6.10+ and extra-cmake-modules.
 
 | Distribution | Command |
 | --- | --- |
-| Arch / CachyOS | `sudo pacman -S --needed cmake extra-cmake-modules ninja qt6-base qt6-declarative kirigami kirigami-addons ki18n kcoreaddons kconfig kcrash kitemmodels ksyntaxhighlighting kcolorscheme kiconthemes qqc2-desktop-style breeze-icons` |
+| Arch / CachyOS | `sudo pacman -S --needed cmake extra-cmake-modules ninja qt6-base qt6-declarative kirigami kirigami-addons ki18n kcoreaddons kconfig kcrash kitemmodels syntax-highlighting kcolorscheme kiconthemes qqc2-desktop-style breeze-icons` |
 | Fedora | `sudo dnf install cmake extra-cmake-modules ninja-build qt6-qtbase-devel qt6-qtdeclarative-devel kf6-kirigami-devel kf6-kirigami-addons-devel kf6-ki18n-devel kf6-kcoreaddons-devel kf6-kconfig-devel kf6-kcrash-devel kf6-kitemmodels-devel kf6-syntax-highlighting-devel qqc2-desktop-style` |
 | Debian / Ubuntu | `sudo apt install cmake extra-cmake-modules ninja-build qt6-base-dev qt6-declarative-dev libkf6kirigami-dev libkf6i18n-dev libkf6coreaddons-dev libkf6config-dev libkf6crash-dev libkf6itemmodels-dev libkf6syntaxhighlighting-dev qml6-module-org-kde-kirigami qqc2-desktop-style` |
 
