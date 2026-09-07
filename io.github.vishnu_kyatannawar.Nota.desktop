@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Nota
+GenericName=Workplans and Notes
+Comment=Daily workplans and notes, stored as plain markdown
+Exec=nota %f
+Icon=io.github.vishnu_kyatannawar.Nota
+Terminal=false
+Categories=Qt;KDE;Office;ProjectManagement;
+Keywords=notes;markdown;todo;workplan;journal;
+StartupNotify=true
+X-KDE-SingleMainWindow=true

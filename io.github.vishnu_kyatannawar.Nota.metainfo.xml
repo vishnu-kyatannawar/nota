@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-FileCopyrightText: 2026 Vishnu Kyatannawar -->
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+<component type="desktop-application">
+  <id>io.github.vishnu_kyatannawar.Nota</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <name>Nota</name>
+  <summary>Daily workplans and notes in plain markdown</summary>
+
+  <description>
+    <p>
+      Nota is built around one dated workplan per day. Unfinished items move to the new day
+      keeping their identity and the time they were first added; finished ones stay on the day
+      they were finished.
+    </p>
+    <p>
+      Every page is a plain markdown file in a directory you own, and that vault is the source
+      of truth. Open a page in Kate, grep the whole tree or put it in git — none of it needs
+      Nota running.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>A workplan for every day, created automatically</li>
+      <li>Rollover from the most recent workplan, so a weekend never breaks the chain</li>
+      <li>Keyboard-first items with nesting, labels and logged time</li>
+      <li>Items that repeat every day, in a section at the top</li>
+      <li>Folders that mirror the directory tree</li>
+      <li>Hours worked per day, and work, leave or holiday</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">io.github.vishnu_kyatannawar.Nota.desktop</launchable>
+
+  <url type="homepage">https://vishnu-kyatannawar.github.io/nota/</url>
+  <url type="bugtracker">https://github.com/vishnu-kyatannawar/nota/issues</url>
+  <url type="vcs-browser">https://github.com/vishnu-kyatannawar/nota</url>
+
+  <developer id="io.github.vishnu_kyatannawar">
+    <name>Vishnu Kyatannawar</name>
+  </developer>
+
+  <content_rating type="oars-1.1"/>
+
+  <releases>
+    <release version="0.2.0" date="2026-09-07">
+      <description>
+        <p>First native KDE build: the vault, the note format and rollover, with a Kirigami window.</p>
+      </description>
+    </release>
+  </releases>
+</component>

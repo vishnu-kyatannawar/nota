@@ -61,4 +61,12 @@ if(BUILD_TESTING)
     add_subdirectory(autotests)
 endif()
 
+install(PROGRAMS io.github.vishnu_kyatannawar.Nota.desktop
+        DESTINATION ${KDE_INSTALL_APPDIR})
+install(FILES io.github.vishnu_kyatannawar.Nota.metainfo.xml
+        DESTINATION ${KDE_INSTALL_METAINFODIR})
+ecm_install_icons(ICONS
+    icons/sc-apps-io.github.vishnu_kyatannawar.Nota.svg
+    DESTINATION ${KDE_INSTALL_ICONDIR})
+
 feature_summary(WHAT ALL FATAL_ON_MISSING_REQUIRED_PACKAGES)
