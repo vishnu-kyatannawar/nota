@@ -134,7 +134,7 @@ QString collapseSpaces(QString s)
 QString trimTrailing(const QString &s, QLatin1StringView chars)
 {
     qsizetype end = s.size();
-    while (end > 0 && chars.contains(s.at(end - 1).toLatin1())) {
+    while (end > 0 && chars.contains(s.at(end - 1))) {
         --end;
     }
     return s.first(end);
