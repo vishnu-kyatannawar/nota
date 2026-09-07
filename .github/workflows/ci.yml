@@ -5,94 +5,36 @@ on:
     branches: [main]
   pull_request:
 
-# cgo rules out cross-compiling, so each target builds on its own native runner.
+# Kirigami 6.29 needs Qt 6.9 and KDE Frameworks 6.10, which no Ubuntu runner
+# image carries, so the build runs in an Arch container instead.
 jobs:
   build:
-    name: ${{ matrix.name }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { os: ubuntu-24.04, name: linux, binary: bin/nota }
-          - { os: windows-2022, name: windows, binary: bin/nota.exe }
+    name: Build and test
+    runs-on: ubuntu-24.04
+    container: archlinux:base-devel
 
     steps:
+      - name: Install Qt 6 and KDE Frameworks 6
+        run: |
+          pacman -Syu --noconfirm --needed \
+            git cmake extra-cmake-modules ninja \
+            qt6-base qt6-declarative qt6-svg \
+            kirigami kirigami-addons ki18n kcoreaddons kconfig kcrash \
+            kitemmodels ksyntaxhighlighting kcolorscheme kiconthemes \
+            qqc2-desktop-style breeze-icons \
+            appstream desktop-file-utils
+
       - uses: actions/checkout@v5
 
-      - name: Install Linux GUI dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
-
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: pnpm install --frozen-lockfile
-
-      - name: Lint frontend
-        working-directory: frontend
-        run: pnpm run lint
-
-      - name: Typecheck frontend
-        working-directory: frontend
-        run: pnpm run typecheck
-
-      - name: Test frontend
-        working-directory: frontend
-        run: pnpm test
-
-      # The Go binary embeds frontend/dist, so the frontend is built first.
-      - name: Build frontend
-        working-directory: frontend
-        run: pnpm run build
-
-      - name: Vet
-        run: go vet ./...
-
-      - name: Lint Go
-        uses: golangci/golangci-lint-action@v9
-        with:
-          version: v2.13.2
-
-      - name: Test
-        run: go test -race ./...
-
-      - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.16
-
-      # Generate through the Taskfile rather than calling the CLI directly, so
-      # the check uses exactly the flags (-ts -i) that `wails3 build` uses and
-      # cannot drift from them.
-      - name: Check bindings are up to date
-        run: |
-          wails3 task common:generate:bindings
-          git diff --exit-code -- frontend/bindings
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
 
       - name: Build
-        run: wails3 build
+        run: cmake --build build
 
-      - name: Verify binary exists
-        shell: bash
-        run: test -f "${{ matrix.binary }}"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: nota-${{ matrix.name }}
-          path: ${{ matrix.binary }}
-          if-no-files-found: error
+      # The suites are deliberately window-free, but offscreen costs nothing
+      # and keeps them honest once QML tests arrive.
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+        env:
+          QT_QPA_PLATFORM: offscreen

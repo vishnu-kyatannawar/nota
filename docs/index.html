@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nota — daily workplans in plain markdown</title>
-<meta name="description" content="A desktop note app for Linux and Windows, built around one dated workplan per day. Unfinished items roll forward. Notes are plain markdown files you own.">
+<meta name="description" content="A native KDE Plasma note app built around one dated workplan per day. Unfinished items roll forward. Notes are plain markdown files you own.">
 
 <meta property="og:title" content="Nota — daily workplans in plain markdown">
-<meta property="og:description" content="One dated workplan per day. Unfinished items roll forward, finished ones stay behind. Your notes are plain markdown files in a directory you own.">
+<meta property="og:description" content="One dated workplan per day, native to KDE Plasma. Unfinished items roll forward, finished ones stay behind. Your notes are plain markdown files in a directory you own.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://vishnu-kyatannawar.github.io/nota/">
 <meta name="theme-color" content="#5b5bd6">
@@ -166,6 +166,14 @@
 
   .two { display: grid; gap: 26px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
 
+  .notice {
+    margin-top: 34px; padding: 18px 20px; border-radius: 10px;
+    background: var(--accent-soft); border: 1px solid var(--border);
+    font-size: .9rem; color: var(--ink); max-width: 68ch;
+  }
+  .notice strong { font-weight: 650; }
+  .notice p + p { margin-top: 10px; }
+
   footer { padding: 46px 0 64px; border-top: 1px solid var(--border); color: var(--muted); font-size: .85rem; }
   footer a { margin-right: 18px; }
 
@@ -192,9 +200,9 @@
 
     <h1>Your day, <em>one note at a time</em>.</h1>
     <p class="lede">
-      A desktop note app built around a single idea: one dated workplan per day. When tomorrow
-      starts, the things you didn't finish come with you and the things you did stay behind.
-      Everything is a plain markdown file in a directory you own.
+      A note app for KDE Plasma built around a single idea: one dated workplan per day. When
+      tomorrow starts, the things you didn't finish come with you and the things you did stay
+      behind. Everything is a plain markdown file in a directory you own.
     </p>
 
     <div class="cta">
@@ -202,7 +210,18 @@
       <a class="btn btn-ghost" href="https://github.com/vishnu-kyatannawar/nota">Source on GitHub</a>
       <a class="btn btn-ghost" href="https://github.com/vishnu-kyatannawar/nota/releases/latest">Latest release</a>
     </div>
-    <p class="platforms">Linux and Windows · single binary · light and dark · MIT licensed</p>
+    <p class="platforms">KDE Plasma · Qt 6 and KDE Frameworks 6 · your Breeze theme, your fonts · MIT licensed</p>
+
+    <div class="notice">
+      <p><strong>Nota is being rewritten.</strong> It used to draw its interface in an embedded
+      WebKitGTK view; it is becoming a native Kirigami application, so it follows your colour
+      scheme, your fonts and your shortcuts instead of bringing its own.</p>
+      <p>The note format has not changed and will not — an existing vault opens unchanged, and
+      the files the new build writes are byte-for-byte what the old one wrote. The parser, the
+      vault, the settings and the rollover rules are ported and tested; the interface is being
+      built now. <strong>The latest release is still the previous build</strong>, and it keeps
+      working.</p>
+    </div>
   </div>
 </header>
 
@@ -350,10 +369,9 @@
         opens in any editor and travels in your backups.</p>
       </div>
       <div class="card">
-        <h3>Updates, if you want them</h3>
-        <p>Nota can check GitHub for a newer version and install it in one click, verifying the
-        published checksum first. It asks before it ever uses the network, and no means never —
-        this is the only request Nota makes.</p>
+        <h3>Never phones home</h3>
+        <p>No accounts, no telemetry, no sync service, no update check. Nota makes no network
+        requests at all — your package manager already knows how to update software.</p>
       </div>
       <div class="card">
         <h3>Nested folders</h3>
@@ -368,17 +386,19 @@
       <div class="card">
         <h3>One click, one key</h3>
         <p>Hover any item for done, delete and move-to-today. <span class="mono">Ctrl+Enter</span>,
-        <span class="mono">Ctrl+Backspace</span> and <span class="mono">Ctrl+Shift+M</span> do the same from the keyboard.</p>
+        <span class="mono">Ctrl+Backspace</span> and <span class="mono">Ctrl+Shift+M</span> do the same
+        from the keyboard — and every one of them is rebindable, because they are ordinary KDE actions.</p>
       </div>
       <div class="card">
-        <h3>Your fonts</h3>
-        <p>Inter, Manrope or IBM Plex Sans for the interface; Lora or Source Serif 4 for notes; JetBrains
-        Mono for code. Bundled with the app, three sizes, nothing fetched.</p>
+        <h3>Your fonts, not ours</h3>
+        <p>The interface, notes and code fonts are the ones Plasma is set to. Override any of the
+        three if you want to — the choice travels with the vault — but nothing is bundled to
+        overrule a setting you already made.</p>
       </div>
       <div class="card">
         <h3>Looks like your desktop</h3>
-        <p>Light, dark, or follow the system. Opens maximised the first time, then remembers the size
-        and position you leave it at.</p>
+        <p>Breeze colours, your icon theme, your window decorations. Light and dark follow Plasma
+        because they <em>are</em> Plasma — there is no separate theme to keep in sync.</p>
       </div>
     </div>
   </div>
@@ -388,9 +408,9 @@
   <div class="wrap">
     <h2>Your notes stay yours</h2>
     <p class="sub">
-      The markdown files are the source of truth. The app keeps a SQLite index for search, but it's
-      a cache — delete it and it rebuilds. If Nota disappeared tomorrow, your notes would still open
-      in any editor.
+      The markdown files are the source of truth. Anything the app keeps beside them is a cache —
+      delete it and it rebuilds. If Nota disappeared tomorrow, your notes would still open in any
+      editor.
     </p>
 
     <div class="two">
@@ -403,10 +423,10 @@
   <span class="k">Projects/</span>
     rv-license/
       api-notes.md
-  <span class="c">.nota/          # settings, templates, index</span></code></pre>
+  <span class="c">.nota/          # settings, templates, trash</span></code></pre>
         <p class="sub" style="margin-top:16px;font-size:.86rem">
-          <code>grep -r "auth bug" ~/Notes</code> works. So does <code>git init</code>, and so does
-          syncing the folder with anything you already use.
+          <code>grep -r "auth bug" ~/Notes</code> works. So does <code>git init</code>, so does
+          opening a page in Kate, and so does syncing the folder with anything you already use.
         </p>
       </div>
 
@@ -462,34 +482,43 @@
   <div class="wrap">
     <h2>Install</h2>
     <p class="sub">
-      No root or administrator rights. Both scripts verify the download against the release's
-      published SHA-256 before installing anything.
+      The KDE build is not released yet. Until it is, there are two things you can do: install
+      the previous release, which still works, or build the new one from source.
     </p>
 
     <div class="two">
       <div>
-        <p class="eyebrow" style="margin-bottom:12px">Linux</p>
-        <pre><code>curl -fsSL https://raw.githubusercontent.com/\
-vishnu-kyatannawar/nota/main/install.sh | sh</code></pre>
+        <p class="eyebrow" style="margin-bottom:12px">Build the KDE version</p>
+        <pre><code>git clone https://github.com/\
+vishnu-kyatannawar/nota.git
+cd nota
+cmake -B build -G Ninja
+cmake --build build
+ctest --test-dir build</code></pre>
         <p class="sub" style="margin-top:14px;font-size:.86rem">
-          Installs to <code>~/.local/bin</code> with a desktop entry. Needs GTK4 and WebKitGTK 6 —
-          the script checks first and prints the right package name for your distribution.
+          Needs Qt 6.9+, KDE Frameworks 6.10+ and extra-cmake-modules. The
+          <a href="https://github.com/vishnu-kyatannawar/nota#build">README</a> has the one-line
+          dependency command for Arch, Fedora and Debian.
         </p>
       </div>
       <div>
-        <p class="eyebrow" style="margin-bottom:12px">Windows</p>
-        <pre><code>irm https://raw.githubusercontent.com/\
-vishnu-kyatannawar/nota/main/install.ps1 | iex</code></pre>
+        <p class="eyebrow" style="margin-bottom:12px">The previous release</p>
+        <pre><code>curl -fsSL https://raw.githubusercontent.com/\
+vishnu-kyatannawar/nota/main/install.sh | sh</code></pre>
         <p class="sub" style="margin-top:14px;font-size:.86rem">
-          Installs to <code>%LOCALAPPDATA%\Programs\Nota</code> with a Start menu shortcut. Needs
-          WebView2, which ships with Windows 10 21H2 and later.
+          Installs v4.6.1 to <code>~/.local/bin</code> with a desktop entry, no root, verified
+          against the release's published SHA-256. That build draws itself in a WebKitGTK view,
+          so the script checks for it first and prints the right package name for your
+          distribution. It reads and writes exactly the same vault.
         </p>
       </div>
     </div>
 
     <p class="sub" style="margin-top:28px">
-      Prefer to build it yourself? <code>git clone</code>, then <code>wails3 build</code>.
-      The <a href="https://github.com/vishnu-kyatannawar/nota#development">README</a> has the full list.
+      A one-line install and an Arch package come back once the interface is finished. Windows
+      does not: a Kirigami application there would mean shipping Qt and every framework for a
+      window with no Breeze and no Plasma integration, which is the opposite of the point.
+      Windows users should stay on v4.6.1.
     </p>
   </div>
 </section>
@@ -500,7 +529,7 @@ vishnu-kyatannawar/nota/main/install.ps1 | iex</code></pre>
     <a href="https://github.com/vishnu-kyatannawar/nota/releases/latest">Releases</a>
     <a href="https://github.com/vishnu-kyatannawar/nota/issues">Issues</a>
     <a href="https://github.com/vishnu-kyatannawar/nota/blob/main/LICENSE">MIT licence</a>
-    <p style="margin-top:16px">Built with Go and Wails. Your notes are markdown files, and they always will be.</p>
+    <p style="margin-top:16px">Built with Qt 6 and KDE Frameworks. Your notes are markdown files, and they always will be.</p>
   </div>
 </footer>
 
