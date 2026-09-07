@@ -1,9 +1,10 @@
-.task
-bin
-frontend/dist
-frontend/node_modules
-build/linux/appimage/build
-build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
+# CMake out-of-source build tree.
+build/
+.cache/
+compile_commands.json
+
+# The Go application this branch replaces; its binary may still be lying around.
+/nota
 
 # Local agent tooling and working artifacts, not project source.
 .claude/
