@@ -17,6 +17,7 @@
 
 #include <QObject>
 #include <QQmlEngine>
+#include <QTimer>
 
 #include <memory>
 
@@ -44,6 +45,7 @@ class Nota : public QObject
     Q_PROPERTY(int openCount READ openCount NOTIFY currentChanged)
     Q_PROPERTY(int doneCount READ doneCount NOTIFY currentChanged)
     Q_PROPERTY(QString errorMessage READ errorMessage NOTIFY errorMessageChanged)
+    Q_PROPERTY(bool dirty READ isDirty NOTIFY dirtyChanged)
 
 public:
     /*!
@@ -91,6 +93,11 @@ public:
     {
         return m_errorMessage;
     }
+    /*! Whether there are edits the timers have not written out yet. */
+    bool isDirty() const
+    {
+        return m_itemsDirty || m_bodyDirty;
+    }
 
     /*! Opens a page by its vault-relative path. */
     Q_INVOKABLE void open(const QString &path);
@@ -101,15 +108,70 @@ public:
      */
     Q_INVOKABLE void openToday();
 
+    /*! Replaces the prose under the items. Debounced like the items are. */
+    Q_INVOKABLE void setBody(const QString &body);
+
+    /*!
+     * Writes any pending edit immediately. Called on a page switch, when the
+     * window loses focus and on quit, so a debounce timer can never be the
+     * reason an edit was lost.
+     */
+    Q_INVOKABLE void flush();
+
+    /*! Records the hours worked on this day. Refuses anything but "hh:mm". */
+    Q_INVOKABLE bool setHours(const QString &hours);
+
+    /*! Marks the day work, weekend, leave or holiday. */
+    Q_INVOKABLE bool setDayType(const QString &dayType);
+
+    /*! Shows items, notes, or both. A workplan is always both. */
+    Q_INVOKABLE bool setLayout(const QString &layout);
+
+    /*!
+     * Creates an untitled page in \a folder, opens it, and returns its path.
+     * The name is made unique rather than overwriting whatever is there.
+     */
+    Q_INVOKABLE QString createNote(const QString &folder);
+
+    /*! Creates a folder under \a parent. */
+    Q_INVOKABLE bool createFolder(const QString &parent, const QString &name);
+
+    /*! Renames a page or folder in place, keeping it where it is. */
+    Q_INVOKABLE bool renamePath(const QString &path, const QString &newName);
+
+    /*! Moves a page or folder to the trash. */
+    Q_INVOKABLE bool removePath(const QString &path);
+
+    /*!
+     * Whether this path is the reserved workplan folder, which cannot be
+     * renamed or deleted without breaking every dated note under it.
+     */
+    Q_INVOKABLE bool isReserved(const QString &path) const;
+
+    /*! Adds an item that repeats every day, and seeds it into today. */
+    Q_INVOKABLE bool addRepeating(const QString &text);
+
+    /*!
+     * Stops an item repeating and takes it out of today. Workplans already
+     * written keep their copy: what you did on a day is a record of that day.
+     */
+    Q_INVOKABLE bool stopRepeating(const QString &id);
+
+    /*! Moves one row, with everything under it, into today's workplan. */
+    Q_INVOKABLE bool moveRowToToday(int row);
+
     /*! Dismisses whatever went wrong last. */
     Q_INVOKABLE void clearError();
 
 Q_SIGNALS:
     void currentChanged();
     void errorMessageChanged();
+    void dirtyChanged();
 
 private:
     void reload();
+    void armSave(QTimer *timer, bool *flag);
+    void saveNow();
     void fail(const QString &message);
     void scheduleMidnightRoll();
 
@@ -122,4 +184,16 @@ private:
     MdNote::Note m_current;
     QString m_currentPath;
     QString m_errorMessage;
+
+    // Two debounces rather than one: prose is typed in longer runs than item
+    // text, so it earns a slower timer.
+    QTimer *m_itemSave = nullptr;
+    QTimer *m_bodySave = nullptr;
+    bool m_itemsDirty = false;
+    bool m_bodyDirty = false;
+    /*!
+     * The page a pending save was armed for. A save that fires after the user
+     * has moved on must not write these items into the page they moved to.
+     */
+    QString m_savePath;
 };

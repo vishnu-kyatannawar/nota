@@ -23,6 +23,32 @@ void ItemModel::setItems(const QList<MdNote::Item> &items)
     endResetModel();
 }
 
+void ItemModel::mergeSaved(const QList<MdNote::Item> &saved)
+{
+    if (saved.size() != m_items.size()) {
+        // Structure moved under us, so there is nothing to merge into.
+        setItems(saved);
+        return;
+    }
+    for (qsizetype i = 0; i < saved.size(); ++i) {
+        MdNote::Item &mine = m_items[i];
+        const MdNote::Item &theirs = saved.at(i);
+        if (mine.id == theirs.id && mine.createdAt == theirs.createdAt && mine.doneAt == theirs.doneAt
+            && mine.from == theirs.from && mine.carried == theirs.carried && mine.recurring == theirs.recurring) {
+            continue;
+        }
+        mine.id = theirs.id;
+        mine.createdAt = theirs.createdAt;
+        mine.doneAt = theirs.doneAt;
+        mine.from = theirs.from;
+        mine.carried = theirs.carried;
+        mine.recurring = theirs.recurring;
+        Q_EMIT dataChanged(index(int(i), 0),
+                           index(int(i), 0),
+                           {IdRole, CreatedAtRole, DoneAtRole, FromRole, CarriedRole, RecurringRole});
+    }
+}
+
 int ItemModel::rowCount(const QModelIndex &parent) const
 {
     return parent.isValid() ? 0 : int(m_items.size());

@@ -53,8 +53,18 @@ public:
 
     explicit ItemModel(QObject *parent = nullptr);
 
-    /*! Replaces the list with a note's items. */
+    /*! Replaces the list with a note's items. Resets the model. */
     void setItems(const QList<MdNote::Item> &items);
+
+    /*!
+     * Takes back the bookkeeping a save produced — minted ids, creation times,
+     * completion stamps — without disturbing the text or the row count.
+     *
+     * setItems() would do the same job through a model reset, which destroys
+     * the delegate the user is typing in. A save happens every 400 ms while
+     * someone types, so that reset would make the editor unusable.
+     */
+    void mergeSaved(const QList<MdNote::Item> &saved);
 
     /*! The items as they would be written back. */
     QList<MdNote::Item> items() const

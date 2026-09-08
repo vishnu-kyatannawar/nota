@@ -10,6 +10,7 @@ ecm_add_tests(
     mdnotetest.cpp
     workplantest.cpp
     itemmodeltest.cpp
+    savetest.cpp
     settingstest.cpp
     vaulttest.cpp
     NAME_PREFIX "nota-"

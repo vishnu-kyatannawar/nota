@@ -10,10 +10,11 @@ add_library(notacore STATIC
     workplan.cpp
     itemmodel.cpp
     foldertreemodel.cpp
+    app.cpp
 )
 
 target_include_directories(notacore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(notacore PUBLIC Qt6::Core Qt6::Qml KF6::CoreAddons KF6::I18n)
+target_link_libraries(notacore PUBLIC Qt6::Core Qt6::Qml KF6::CoreAddons KF6::I18n KF6::ConfigCore)
 
 # PUBLIC so the executable and the tests inherit it: without the definition
 # every i18n() call warns that no catalogue is set.
@@ -21,10 +22,6 @@ target_compile_definitions(notacore PUBLIC TRANSLATION_DOMAIN="nota")
 set_property(TARGET notacore PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 add_executable(nota main.cpp)
-
-target_sources(nota PRIVATE
-    app.cpp
-)
 
 # The backing target is an executable, so Qt forces NO_PLUGIN and the QML is
 # compiled into the binary's own resources. That is also why there is no
@@ -41,7 +38,10 @@ ecm_target_qml_sources(nota SOURCES
     qml/Main.qml
     qml/Sidebar.qml
     qml/NotePage.qml
+    qml/DayHeader.qml
+    qml/ItemList.qml
     qml/ItemRow.qml
+    qml/NotesEditor.qml
 )
 
 target_compile_definitions(nota PRIVATE NOTA_VERSION_STRING="${PROJECT_VERSION}")

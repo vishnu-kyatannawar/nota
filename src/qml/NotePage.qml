@@ -9,7 +9,6 @@ import org.kde.kirigami as Kirigami
 import org.kde.nota
 
 // The open page: its header, its action items and the prose under them.
-// Read only for now — the editing model lands next.
 Item {
     id: page
 
@@ -33,92 +32,43 @@ Item {
     QQC2.ScrollView {
         anchors.fill: parent
         visible: Nota.currentPath.length > 0
-        contentWidth: availableWidth
         clip: true
 
-        ColumnLayout {
-            width: page.width
-            spacing: Kirigami.Units.largeSpacing
+        // One scrolling surface for the whole page: the header and the notes
+        // ride with the items rather than fighting them for the wheel.
+        ItemList {
+            id: items
 
-            // --- header ------------------------------------------------------
-            ColumnLayout {
-                Layout.fillWidth: true
-                Layout.margins: Kirigami.Units.largeSpacing
-                Layout.bottomMargin: 0
-                spacing: Kirigami.Units.smallSpacing
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: Kirigami.Units.largeSpacing
-
-                    Kirigami.Heading {
-                        text: Nota.title
-                        level: 1
-                        elide: Text.ElideRight
-                    }
-
-                    QQC2.Label {
-                        visible: Nota.isWorkplan && Nota.dayType.length > 0
-                        text: Nota.dayType
-                        font: Kirigami.Theme.smallFont
-                        opacity: 0.7
-                        leftPadding: Kirigami.Units.smallSpacing
-                        rightPadding: Kirigami.Units.smallSpacing
-                        background: Rectangle {
-                            radius: Kirigami.Units.cornerRadius
-                            color: "transparent"
-                            border.color: Kirigami.Theme.separatorColor
-                            border.width: 1
-                        }
-                    }
-
-                    Item {
-                        Layout.fillWidth: true
-                    }
-
-                    QQC2.Label {
-                        text: i18n("%1 open · %2 done", Nota.openCount, Nota.doneCount)
-                        font: Kirigami.Theme.smallFont
-                        opacity: 0.7
-                    }
-                }
-
-                QQC2.Label {
-                    text: Nota.subtitle
-                    font: Kirigami.Theme.smallFont
-                    opacity: 0.55
-                    elide: Text.ElideMiddle
-                    Layout.fillWidth: true
-                }
+            header: DayHeader {
+                width: items.width
             }
 
-            // --- items -------------------------------------------------------
-            Repeater {
-                model: Nota.items
+            footer: ColumnLayout {
+                width: items.width
+                spacing: Kirigami.Units.smallSpacing
 
-                delegate: ItemRow {
+                QQC2.Button {
+                    text: i18nc("@action:button", "Add item")
+                    icon.name: "list-add"
+                    flat: true
+                    Layout.leftMargin: Kirigami.Units.largeSpacing
+                    Layout.topMargin: Kirigami.Units.smallSpacing
+                    onClicked: items.focusRow(items.model.insertItem(items.count - 1, 0), 0)
+                }
+
+                Kirigami.Separator {
+                    Layout.fillWidth: true
+                    Layout.margins: Kirigami.Units.largeSpacing
+                    visible: notes.visible
+                }
+
+                NotesEditor {
+                    id: notes
                     Layout.fillWidth: true
                     Layout.leftMargin: Kirigami.Units.largeSpacing
                     Layout.rightMargin: Kirigami.Units.largeSpacing
+                    Layout.bottomMargin: Kirigami.Units.gridUnit
                 }
-            }
-
-            // --- the prose under the items -----------------------------------
-            QQC2.TextArea {
-                Layout.fillWidth: true
-                Layout.margins: Kirigami.Units.largeSpacing
-                visible: Nota.body.length > 0
-                // Plain text on purpose: Qt's markdown writer normalises what it
-                // reads, which would break the byte-for-byte round trip.
-                textFormat: TextEdit.PlainText
-                text: Nota.body
-                readOnly: true
-                wrapMode: TextEdit.Wrap
-                background: null
-            }
-
-            Item {
-                Layout.preferredHeight: Kirigami.Units.gridUnit
             }
         }
     }
