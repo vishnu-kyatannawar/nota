@@ -24,8 +24,20 @@ Kirigami.ApplicationWindow {
 
     // Rollover runs on launch, at midnight and whenever the window regains
     // focus — the third is what catches a machine that was asleep at midnight.
-    onActiveChanged: if (active) {
-        Nota.openToday();
+    onActiveChanged: {
+        if (active) {
+            Nota.openToday();
+        } else {
+            // Losing the window must not leave an edit sitting in a timer.
+            Nota.flush();
+        }
+    }
+
+    onClosing: Nota.flush()
+
+    Shortcut {
+        sequences: ["Ctrl+E"]
+        onActivated: notePage.toggleRaw()
     }
 
     pageStack.initialPage: Kirigami.Page {
@@ -62,6 +74,7 @@ Kirigami.ApplicationWindow {
                 }
 
                 NotePage {
+                    id: notePage
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                 }

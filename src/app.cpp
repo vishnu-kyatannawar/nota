@@ -532,4 +532,33 @@ bool Nota::moveRowToToday(int row)
     return true;
 }
 
+QString Nota::raw() const
+{
+    if (m_currentPath.isEmpty()) {
+        return {};
+    }
+    return m_vault->readRaw(m_currentPath).value_or(QString());
+}
+
+bool Nota::saveRaw(const QString &content)
+{
+    if (m_currentPath.isEmpty()) {
+        return false;
+    }
+    // Drop anything the structured editor had pending: the raw text is now the
+    // more recent statement of what this file should say.
+    m_itemSave->stop();
+    m_bodySave->stop();
+    m_itemsDirty = false;
+    m_bodyDirty = false;
+    Q_EMIT dirtyChanged();
+
+    if (!m_vault->writeRaw(m_currentPath, content)) {
+        fail(m_vault->lastError());
+        return false;
+    }
+    reload();
+    return true;
+}
+
 #include "moc_app.cpp"

@@ -50,7 +50,7 @@ ListView {
         if (pendingFocusRow < 0) {
             return;
         }
-        const delegate = itemAtIndex(pendingFocusRow);
+        const delegate = itemAtIndex(pendingFocusRow) as ItemRow;
         if (!delegate) {
             // Not instantiated yet; try again once the view has laid out.
             Qt.callLater(itemView.applyPendingFocus);
@@ -58,6 +58,17 @@ ListView {
         }
         delegate.claimFocus(pendingCursor);
         pendingFocusRow = -1;
+    }
+
+    // Repeating items are seeded at the top of every workplan, so grouping on
+    // the marker keeps them together without reordering anything.
+    section.property: Nota.isWorkplan ? "isRepeating" : ""
+    section.criteria: ViewSection.FullString
+    section.delegate: Kirigami.ListSectionHeader {
+        width: itemView.width
+        text: section === "true"
+            ? i18nc("@title:group items that come back every day", "Repeats daily")
+            : i18nc("@title:group the rest of the day's work", "Today")
     }
 
     delegate: ItemRow {

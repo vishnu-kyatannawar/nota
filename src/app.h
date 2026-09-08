@@ -160,6 +160,15 @@ public:
     /*! Moves one row, with everything under it, into today's workplan. */
     Q_INVOKABLE bool moveRowToToday(int row);
 
+    /*! The open page's bytes, unparsed, for the raw markdown view. */
+    Q_INVOKABLE QString raw() const;
+
+    /*!
+     * Replaces the whole file. The only path that lets someone edit what the
+     * editor cannot express, so it is deliberately unvalidated beyond parsing.
+     */
+    Q_INVOKABLE bool saveRaw(const QString &content);
+
     /*! Dismisses whatever went wrong last. */
     Q_INVOKABLE void clearError();
 

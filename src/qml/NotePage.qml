@@ -12,8 +12,24 @@ import org.kde.nota
 Item {
     id: page
 
+    // Ctrl+E swaps the whole page to text and back.
+    property bool rawMode: false
+
     Kirigami.Theme.colorSet: Kirigami.Theme.View
     Kirigami.Theme.inherit: false
+
+    function toggleRaw(): void {
+        if (Nota.currentPath.length === 0) {
+            return;
+        }
+        if (!rawMode) {
+            Nota.flush();
+        }
+        rawMode = !rawMode;
+        if (rawMode) {
+            (rawLoader.item as RawEditor).load();
+        }
+    }
 
     Rectangle {
         anchors.fill: parent
@@ -29,9 +45,19 @@ Item {
         explanation: i18n("Choose something in the sidebar, or open today's workplan.")
     }
 
+    Loader {
+        id: rawLoader
+        anchors.fill: parent
+        active: page.rawMode
+        visible: active
+        sourceComponent: RawEditor {
+            onClosed: page.rawMode = false
+        }
+    }
+
     QQC2.ScrollView {
         anchors.fill: parent
-        visible: Nota.currentPath.length > 0
+        visible: Nota.currentPath.length > 0 && !page.rawMode
         clip: true
 
         // One scrolling surface for the whole page: the header and the notes
@@ -47,13 +73,34 @@ Item {
                 width: items.width
                 spacing: Kirigami.Units.smallSpacing
 
-                QQC2.Button {
-                    text: i18nc("@action:button", "Add item")
-                    icon.name: "list-add"
-                    flat: true
+                RowLayout {
+                    Layout.fillWidth: true
                     Layout.leftMargin: Kirigami.Units.largeSpacing
+                    Layout.rightMargin: Kirigami.Units.largeSpacing
                     Layout.topMargin: Kirigami.Units.smallSpacing
-                    onClicked: items.focusRow(items.model.insertItem(items.count - 1, 0), 0)
+                    spacing: Kirigami.Units.smallSpacing
+
+                    QQC2.Button {
+                        text: i18nc("@action:button", "Add item")
+                        icon.name: "list-add"
+                        flat: true
+                        onClicked: items.focusRow(items.model.insertItem(items.count - 1, 0), 0)
+                    }
+
+                    QQC2.TextField {
+                        id: repeatField
+                        visible: Nota.isWorkplan
+                        Layout.fillWidth: true
+                        placeholderText: i18nc("@info:placeholder", "something to do every day…")
+                        // Adding one seeds it into today as well as tomorrow,
+                        // which is plainly what someone typing it at 09:00 meant.
+                        onAccepted: {
+                            if (text.trim().length > 0 && Nota.addRepeating(text)) {
+                                text = "";
+                            }
+                        }
+                        Keys.onEscapePressed: text = ""
+                    }
                 }
 
                 Kirigami.Separator {

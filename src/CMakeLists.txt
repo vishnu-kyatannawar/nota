@@ -42,6 +42,8 @@ ecm_target_qml_sources(nota SOURCES
     qml/ItemList.qml
     qml/ItemRow.qml
     qml/NotesEditor.qml
+    qml/SidebarButton.qml
+    qml/RawEditor.qml
 )
 
 target_compile_definitions(nota PRIVATE NOTA_VERSION_STRING="${PROJECT_VERSION}")

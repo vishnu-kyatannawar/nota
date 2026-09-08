@@ -29,7 +29,9 @@ FocusScope {
     required property string body
     required property bool hasBody
 
-    property ListView view
+    property ItemList view
+    // Ctrl+Shift+N opens an empty notes box that has nothing to show yet.
+    property bool bodyOpen: false
 
     implicitHeight: layout.implicitHeight + Kirigami.Units.smallSpacing * 2
 
@@ -111,11 +113,11 @@ FocusScope {
                 activeFocusOnTab: false
                 placeholderText: row.index === 0 && row.text.length === 0 ? i18n("Type an item and press Enter") : ""
 
-                font: row.isHeading ? Kirigami.Theme.defaultFont : Kirigami.Theme.defaultFont
+                // Sub-properties only: binding `font` wholesale as well would
+                // conflict with these and one of the two silently loses.
+                font.family: Kirigami.Theme.defaultFont.family
                 font.bold: row.isHeading
-                font.pointSize: row.isHeading
-                    ? Kirigami.Theme.defaultFont.pointSize * 1.15
-                    : Kirigami.Theme.defaultFont.pointSize
+                font.pointSize: Kirigami.Theme.defaultFont.pointSize * (row.isHeading ? 1.15 : 1)
                 font.strikeout: row.done
                 opacity: row.done ? 0.55 : 1
 
@@ -147,13 +149,73 @@ FocusScope {
                 Keys.onPressed: event => row.handleKey(event, field)
             }
 
-            QQC2.Label {
-                visible: row.hasBody
-                text: row.body
-                wrapMode: Text.Wrap
-                font: Kirigami.Theme.fixedWidthFont
-                opacity: 0.75
+            Flow {
+                visible: row.labels.length > 0
                 Layout.fillWidth: true
+                spacing: Kirigami.Units.smallSpacing
+
+                Repeater {
+                    model: row.labels
+                    delegate: QQC2.Label {
+                        required property string modelData
+                        // The label lives in the item's text, where the user
+                        // wrote it; this is a reading of that, not a copy.
+                        text: "#" + modelData
+                        font: Kirigami.Theme.smallFont
+                        color: Kirigami.Theme.linkColor
+                        leftPadding: Kirigami.Units.smallSpacing
+                        rightPadding: Kirigami.Units.smallSpacing
+                        background: Rectangle {
+                            radius: height / 2
+                            color: Kirigami.Theme.linkColor
+                            opacity: 0.12
+                        }
+                    }
+                }
+            }
+
+            Loader {
+                id: bodyLoader
+                Layout.fillWidth: true
+                active: row.hasBody || row.bodyOpen
+                visible: active
+
+                sourceComponent: QQC2.TextArea {
+                    id: bodyArea
+                    // Same rule as the item field: the width comes from the
+                    // view, so nothing loops through implicitHeight.
+                    width: field.width
+                    textFormat: TextEdit.PlainText
+                    wrapMode: TextEdit.Wrap
+                    font: Kirigami.Theme.fixedWidthFont
+                    placeholderText: i18nc("@info:placeholder", "Notes for this item")
+                    opacity: 0.85
+
+                    Component.onCompleted: {
+                        text = row.body;
+                        if (row.bodyOpen && row.body.length === 0) {
+                            forceActiveFocus();
+                        }
+                    }
+                    onTextChanged: bodyTimer.restart()
+                    onActiveFocusChanged: if (!activeFocus) {
+                        row.view.model.setBody(row.index, text);
+                    }
+
+                    Timer {
+                        id: bodyTimer
+                        interval: 150
+                        onTriggered: row.view.model.setBody(row.index, bodyArea.text)
+                    }
+
+                    Keys.onPressed: event => {
+                        if (event.key === Qt.Key_Escape) {
+                            row.view.model.setBody(row.index, bodyArea.text);
+                            field.forceActiveFocus();
+                            event.accepted = true;
+                        }
+                    }
+                }
             }
         }
 
@@ -287,6 +349,26 @@ FocusScope {
                 view.focusRow(row.index + (event.key === Qt.Key_Up ? -1 : 1), -1);
                 event.accepted = true;
             }
+            return;
+        }
+
+        // Ctrl+Shift+N — open or close this item's own notes.
+        if (event.key === Qt.Key_N && (mods & Qt.ControlModifier) && (mods & Qt.ShiftModifier)) {
+            if (row.hasBody) {
+                model.setBody(row.index, "");
+                row.bodyOpen = false;
+            } else {
+                row.bodyOpen = !row.bodyOpen;
+            }
+            event.accepted = true;
+            return;
+        }
+
+        // Ctrl+Shift+M — move this item, and everything under it, to today.
+        if (event.key === Qt.Key_M && (mods & Qt.ControlModifier) && (mods & Qt.ShiftModifier)) {
+            row.flush();
+            Nota.moveRowToToday(row.index);
+            event.accepted = true;
             return;
         }
 

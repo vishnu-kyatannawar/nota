@@ -71,6 +71,7 @@ QHash<int, QByteArray> ItemModel::roleNames() const
         {FromRole, QByteArrayLiteral("from")},
         {CarriedRole, QByteArrayLiteral("carried")},
         {RecurringRole, QByteArrayLiteral("recurring")},
+        {IsRepeatingRole, QByteArrayLiteral("isRepeating")},
         {BodyRole, QByteArrayLiteral("body")},
         {HasBodyRole, QByteArrayLiteral("hasBody")},
     };
@@ -115,6 +116,8 @@ QVariant ItemModel::data(const QModelIndex &index, int role) const
         return item.carried;
     case RecurringRole:
         return item.recurring;
+    case IsRepeatingRole:
+        return !item.recurring.isEmpty();
     case BodyRole:
         return item.body.join(u'\n');
     case HasBodyRole:

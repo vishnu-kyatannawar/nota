@@ -40,6 +40,7 @@ public:
         FromRole,
         CarriedRole,
         RecurringRole, //!< the template id when this item repeats
+        IsRepeatingRole, //!< grouped on, so the view can pin what repeats to the top
         BodyRole, //!< the item's own markdown, newline joined
         HasBodyRole,
     };
