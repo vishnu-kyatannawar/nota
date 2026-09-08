@@ -9,6 +9,7 @@ add_definitions(-DNOTA_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 ecm_add_tests(
     mdnotetest.cpp
     workplantest.cpp
+    itemmodeltest.cpp
     settingstest.cpp
     vaulttest.cpp
     NAME_PREFIX "nota-"
