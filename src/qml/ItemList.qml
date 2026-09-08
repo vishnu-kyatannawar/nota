@@ -40,9 +40,22 @@ ListView {
             return;
         }
         currentIndex = row;
+        positionViewAtIndex(row, ListView.Contain);
+
+        // Claim it now if the row already exists. Deferring this to the next
+        // event-loop turn means the claim lands *after* the next keystroke and
+        // drags the caret back to where it was — which reverses typed text.
+        const existing = itemAtIndex(row) as ItemRow;
+        if (existing) {
+            pendingFocusRow = -1;
+            existing.claimFocus(pos);
+            return;
+        }
+
+        // A row that was just inserted has no delegate yet in this turn, so
+        // record the intent and let the delegate claim it when it appears.
         pendingFocusRow = row;
         pendingCursor = pos;
-        positionViewAtIndex(row, ListView.Contain);
         Qt.callLater(itemView.applyPendingFocus);
     }
 
@@ -56,19 +69,11 @@ ListView {
             Qt.callLater(itemView.applyPendingFocus);
             return;
         }
-        delegate.claimFocus(pendingCursor);
+        const pos = pendingCursor;
+        // Cleared before claiming, so a second run cannot re-apply a stale
+        // caret position over what the user has since typed.
         pendingFocusRow = -1;
-    }
-
-    // Repeating items are seeded at the top of every workplan, so grouping on
-    // the marker keeps them together without reordering anything.
-    section.property: Nota.isWorkplan ? "isRepeating" : ""
-    section.criteria: ViewSection.FullString
-    section.delegate: Kirigami.ListSectionHeader {
-        width: itemView.width
-        text: section === "true"
-            ? i18nc("@title:group items that come back every day", "Repeats daily")
-            : i18nc("@title:group the rest of the day's work", "Today")
+        delegate.claimFocus(pos);
     }
 
     delegate: ItemRow {

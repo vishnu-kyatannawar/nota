@@ -34,6 +34,10 @@ FocusScope {
     property bool bodyOpen: false
 
     implicitHeight: layout.implicitHeight + Kirigami.Units.smallSpacing * 2
+    // A plain QQuickItem never takes its height from implicitHeight — only
+    // Controls and items inside a Layout do. Without this every row in the
+    // ListView is zero pixels tall and the whole list is invisible.
+    height: implicitHeight
 
     // The model is the only thing that decides what a row says; this pushes
     // the field's text back into it, never the other way round while typing.
@@ -147,6 +151,17 @@ FocusScope {
                 }
 
                 Keys.onPressed: event => row.handleKey(event, field)
+
+                // Tab and Backtab never arrive at Keys.onPressed — Qt routes
+                // them to these handlers instead, ahead of focus navigation.
+                Keys.onTabPressed: event => {
+                    row.indentBy(1, field);
+                    event.accepted = true;
+                }
+                Keys.onBacktabPressed: event => {
+                    row.indentBy(-1, field);
+                    event.accepted = true;
+                }
             }
 
             Flow {
@@ -273,6 +288,18 @@ FocusScope {
         }
     }
 
+    // Tab and Shift+Tab, carrying the subtree with the row.
+    function indentBy(direction: int, field): void {
+        row.flush();
+        const pos = field.cursorPosition;
+        if (direction > 0) {
+            row.view.model.indentRow(row.index);
+        } else {
+            row.view.model.outdentRow(row.index);
+        }
+        row.view.focusRow(row.index, pos);
+    }
+
     function handleKey(event, field): void {
         const view = row.view;
         const model = view.model;
@@ -317,20 +344,6 @@ FocusScope {
         if ((event.key === Qt.Key_Backspace || event.key === Qt.Key_Delete) && (mods & Qt.ControlModifier)) {
             row.flush();
             view.focusRow(model.removeRow(row.index), -1);
-            event.accepted = true;
-            return;
-        }
-
-        // Tab / Shift+Tab — indent and outdent, carrying the subtree.
-        if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
-            row.flush();
-            const pos = field.cursorPosition;
-            if (event.key === Qt.Key_Tab) {
-                model.indentRow(row.index);
-            } else {
-                model.outdentRow(row.index);
-            }
-            view.focusRow(row.index, pos);
             event.accepted = true;
             return;
         }
