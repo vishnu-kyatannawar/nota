@@ -131,3 +131,18 @@ case ":${PATH}:" in
   *":${PREFIX}/bin:"*) ;;
   *) echo "note: ${PREFIX}/bin is not on your PATH — add it to your shell profile" ;;
 esac
+
+# Installing is not the same as running. A copy left in another prefix — an
+# older install.sh run, or a distribution package — keeps winning if its
+# directory comes first on PATH, and the symptom is an update that appears to
+# have done nothing at all. Say so plainly rather than let it be a mystery.
+running=$(command -v nota 2>/dev/null || true)
+if [ -n "$running" ] && [ "$running" != "${PREFIX}/bin/nota" ]; then
+  other=$("$running" --version 2>/dev/null | head -n1)
+  echo ""
+  echo "warning: typing 'nota' still runs ${running} (${other:-unknown version}),"
+  echo "         not the ${version:-copy} just installed, because its directory comes"
+  echo "         first on your PATH. Desktop launchers resolve it the same way."
+  echo ""
+  echo "         Remove the other copy, or put ${PREFIX}/bin ahead of it on PATH."
+fi

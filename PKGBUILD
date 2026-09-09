@@ -6,7 +6,7 @@
 # -git suffix, point source= at the latest release tarball and delete pkgver().
 
 pkgname=nota-git
-pkgver=5.0.0.r73.g46b53c3
+pkgver=5.1.0.r74.gd5cbb32
 pkgrel=1
 pkgdesc="Daily workplans and notes, stored as plain markdown"
 arch=('x86_64' 'aarch64')
@@ -54,4 +54,26 @@ package() {
   DESTDIR="$pkgdir" cmake --install build
   install -Dm644 "$srcdir/$pkgname/LICENSE" \
     "$pkgdir/usr/share/licenses/${pkgname}/LICENSE"
+
+  # Installing is not the same as running. A copy under a home directory, left
+  # by the install.sh route, sits ahead of /usr/bin on PATH and keeps winning
+  # after this package is installed — and the symptom is an upgrade that
+  # appears to have changed nothing at all. An install= file would say this at
+  # pacman time, but it is a second file to download and the packaged route is
+  # meant to stay one command, so it is said here instead.
+  local shadow=""
+  local candidate
+  for candidate in /home/*/.local/bin/nota /root/.local/bin/nota /usr/local/bin/nota; do
+    # An if rather than a test-and-&&: makepkg runs this under set -e, where a
+    # false test as the last command of the loop body aborts the build, which
+    # would break packaging for everyone who has no stray copy at all.
+    if [ -x "$candidate" ]; then
+      shadow="${shadow} ${candidate}"
+    fi
+  done
+  if [ -n "$shadow" ]; then
+    warning "another Nota will run instead of this one:${shadow}"
+    warning "those directories come before /usr/bin on PATH, for the terminal"
+    warning "and for desktop launchers alike. Remove them with:  rm${shadow}"
+  fi
 }

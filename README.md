@@ -38,6 +38,11 @@ manager owns. The check is the only thing here that touches the network, and
 The running version is at the bottom of the sidebar. Worth quoting in a bug report: an
 installed update does not take effect until you reopen the window.
 
+If that version is not the one you just installed, you have more than one copy. `~/.local/bin`
+comes before `/usr/bin` on most PATHs, so a build left there by the installer keeps running
+even after the package is upgraded — in the terminal and from the desktop launcher alike.
+`which -a nota` lists them; the first one wins.
+
 ## Install
 
 ```sh
