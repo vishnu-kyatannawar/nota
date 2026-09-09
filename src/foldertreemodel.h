@@ -63,6 +63,8 @@ private:
     };
 
     void build(const VaultNode &source, Node *into);
+    /*! Whether two trees hold the same folders and notes, in the same order. */
+    static bool sameAs(const Node *a, const Node *b);
     const Node *nodeFor(const QModelIndex &index) const;
 
     Vault *m_vault = nullptr;

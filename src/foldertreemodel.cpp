@@ -38,14 +38,39 @@ void FolderTreeModel::build(const VaultNode &source, Node *into)
     }
 }
 
+bool FolderTreeModel::sameAs(const Node *a, const Node *b)
+{
+    if (a->children.size() != b->children.size()) {
+        return false;
+    }
+    for (size_t i = 0; i < a->children.size(); ++i) {
+        const Node *x = a->children.at(i).get();
+        const Node *y = b->children.at(i).get();
+        if (x->path != y->path || x->name != y->name || x->isFolder != y->isFolder || !sameAs(x, y)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void FolderTreeModel::refresh()
 {
-    beginResetModel();
-    m_root = std::make_unique<Node>();
-    m_root->isFolder = true;
+    auto rebuilt = std::make_unique<Node>();
+    rebuilt->isFolder = true;
     if (m_vault) {
-        build(m_vault->tree(), m_root.get());
+        build(m_vault->tree(), rebuilt.get());
     }
+
+    // Saving a note marks its folder dirty, so this runs every few hundred
+    // milliseconds while someone types. A reset then collapses every folder
+    // they had expanded and drops the sidebar's scroll position, which is why
+    // this compares first and only resets when the tree really did change.
+    if (sameAs(m_root.get(), rebuilt.get())) {
+        return;
+    }
+
+    beginResetModel();
+    m_root = std::move(rebuilt);
     endResetModel();
 }
 
