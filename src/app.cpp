@@ -7,11 +7,14 @@
 
 #include "foldertreemodel.h"
 #include "itemmodel.h"
+#include "update.h"
 #include "vault.h"
 
 #include <KLocalizedString>
 
+#include <QCoreApplication>
 #include <QDateTime>
+#include <QDir>
 #include <QTimer>
 
 using namespace Qt::StringLiterals;
@@ -95,6 +98,10 @@ Nota::Nota(QObject *parent)
 
     openToday();
     scheduleMidnightRoll();
+
+    if (m_settings.checkForUpdates) {
+        checkForUpdate();
+    }
 }
 
 Nota::~Nota() = default;
@@ -107,6 +114,60 @@ QString Nota::vaultPath() const
 QString Nota::version() const
 {
     return QStringLiteral(NOTA_VERSION_STRING);
+}
+
+bool Nota::canSelfUpdate() const
+{
+    return Update::kindFor(QCoreApplication::applicationFilePath(), QDir::homePath()) == Update::Kind::UserManaged;
+}
+
+bool Nota::isUpdateRunning() const
+{
+    return m_installer && m_installer->isRunning();
+}
+
+void Nota::checkForUpdate()
+{
+    if (!m_checker) {
+        m_checker = std::make_unique<Update::Checker>();
+        connect(m_checker.get(), &Update::Checker::found, this, [this](const Update::Release &release) {
+            // Only ever forward. A build newer than the newest release is a
+            // development build, and telling someone to downgrade is noise.
+            if (Update::compare(release.version, version()) <= 0) {
+                return;
+            }
+            m_updateVersion = release.version;
+            m_updateUrl = release.url;
+            Q_EMIT updateChanged();
+        });
+    }
+    m_checker->check();
+}
+
+void Nota::startUpdate()
+{
+    if (isUpdateRunning()) {
+        return;
+    }
+    if (!canSelfUpdate()) {
+        fail(i18n("This copy of Nota was installed by your package manager, so update it there."));
+        return;
+    }
+
+    if (!m_installer) {
+        m_installer = std::make_unique<Update::Installer>();
+        connect(m_installer.get(), &Update::Installer::output, this, &Nota::updateOutput);
+        connect(m_installer.get(), &Update::Installer::finished, this, [this](bool ok, const QString &message) {
+            Q_EMIT updateRunningChanged();
+            Q_EMIT updateFinished(ok, message);
+        });
+    }
+
+    // Whatever is being typed goes to disk first: the installer replaces the
+    // binary under a window that keeps running until it is reopened.
+    flush();
+    m_installer->start();
+    Q_EMIT updateRunningChanged();
 }
 
 void Nota::fail(const QString &message)

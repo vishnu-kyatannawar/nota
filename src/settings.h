@@ -71,6 +71,12 @@ struct Settings {
     Fonts fonts;
     /*! "rows" stacks items and notes, "columns" puts them side by side. */
     QString split = QString(SplitRows);
+    /*!
+     * Whether to ask GitHub for the newest release at launch. On by default,
+     * because an installed update does nothing until it is noticed — but it is
+     * the one thing here that reaches the network, so it can be turned off.
+     */
+    bool checkForUpdates = true;
 
     /*!
      * Everything the file held that this version does not interpret, kept so

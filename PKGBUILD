@@ -3,10 +3,10 @@
 # This tracks the development branch on purpose: it is the -git package, and
 # pkgver() derives its version from CMakeLists.txt plus the commit, so it
 # always sorts above the last release. For a release build instead, drop the
-# -git suffix, point source= at the v5.0.0 tarball and delete pkgver().
+# -git suffix, point source= at the latest release tarball and delete pkgver().
 
 pkgname=nota-git
-pkgver=0.2.0.r71.g368e1b3
+pkgver=5.0.0.r73.g46b53c3
 pkgrel=1
 pkgdesc="Daily workplans and notes, stored as plain markdown"
 arch=('x86_64' 'aarch64')

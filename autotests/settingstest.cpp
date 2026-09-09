@@ -30,6 +30,7 @@ private Q_SLOTS:
     void unknownKeysSurviveASave();
     void pathsAreDerivedFromTheVault();
     void tildeIsExpandedOnlyInTheFormsThatMeanHome();
+    void theUpdateCheckIsOnByDefaultAndCanBeTurnedOff();
 
 private:
     QString path() const
@@ -160,6 +161,21 @@ void SettingsTest::tildeIsExpandedOnlyInTheFormsThatMeanHome()
     QCOMPARE(expandHome(u"~other/Notes"_s), u"~other/Notes"_s);
     QCOMPARE(expandHome(u"/absolute/Notes"_s), u"/absolute/Notes"_s);
     QCOMPARE(expandHome(u"relative/Notes"_s), u"relative/Notes"_s);
+}
+
+void SettingsTest::theUpdateCheckIsOnByDefaultAndCanBeTurnedOff()
+{
+    // The one thing here that reaches the network, so it has to be refusable
+    // and the refusal has to survive a save.
+    QVERIFY(NotaSettings::defaults().checkForUpdates);
+    QVERIFY(NotaSettings::load(path()).checkForUpdates);
+
+    writeJson(uR"({"checkForUpdates": false})"_s);
+    NotaSettings::Settings off = NotaSettings::load(path());
+    QVERIFY(!off.checkForUpdates);
+
+    QVERIFY(NotaSettings::save(path(), off));
+    QVERIFY(!NotaSettings::load(path()).checkForUpdates);
 }
 
 QTEST_GUILESS_MAIN(SettingsTest)

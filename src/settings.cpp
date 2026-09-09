@@ -77,6 +77,7 @@ bool isKnownKey(const QString &key)
 {
     static const QStringList known = {
         u"vaultPath"_s, u"workplanFolder"_s, u"createOnWeekends"_s, u"theme"_s, u"fonts"_s, u"split"_s,
+        u"checkForUpdates"_s,
     };
     return known.contains(key);
 }
@@ -153,6 +154,9 @@ Settings load(const QString &path)
     if (root.contains("createOnWeekends"_L1)) {
         s.createOnWeekends = root.value("createOnWeekends"_L1).toBool(s.createOnWeekends);
     }
+    if (root.contains("checkForUpdates"_L1)) {
+        s.checkForUpdates = root.value("checkForUpdates"_L1).toBool(s.checkForUpdates);
+    }
     s.theme = normalisedTheme(root.value("theme"_L1).toString(s.theme));
     s.split = normalisedSplit(root.value("split"_L1).toString(s.split));
 
@@ -180,6 +184,7 @@ bool save(const QString &path, const Settings &s)
     root.insert("vaultPath"_L1, s.vaultPath);
     root.insert("workplanFolder"_L1, s.workplanFolder);
     root.insert("createOnWeekends"_L1, s.createOnWeekends);
+    root.insert("checkForUpdates"_L1, s.checkForUpdates);
     root.insert("theme"_L1, s.theme);
     root.insert("split"_L1, s.split);
 

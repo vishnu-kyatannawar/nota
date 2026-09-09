@@ -64,6 +64,14 @@ import time.
 - **`FolderTreeModel::refresh()` must not reset when the tree is unchanged.** The watcher
   reports a dirty folder on every save, and a reset collapses every folder the user had
   expanded. It compares before resetting; keep it that way.
+- **A QML property must not collide with a superclass member.** `Kirigami.Dialog` carries a
+  FINAL `result` and a `done()` signal; shadowing either fails the whole component, so the
+  window never gets created and the app exits 1 in silence. `autotests/windowtest.cpp`
+  exists to catch exactly that.
+- **Qt routes warnings to the journal, not the terminal.** When the app dies quietly, rerun
+  it with `QT_FORCE_STDERR_LOGGING=1` before assuming there is no error message.
+- **The update check needs a `User-Agent`.** GitHub's API answers 403 without one and Qt
+  sets none, so dropping that header makes the check fail silently everywhere.
 - **Only the workplan folder itself is reserved.** The dated notes under it can be deleted
   like any page; they cannot be *renamed*, because the filename is the date. `isReserved()`
   is the folder, `isDatedPage()` is a note under it.

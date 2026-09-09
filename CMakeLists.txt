@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 3.24)
 
-project(nota VERSION 5.0.0 LANGUAGES CXX)
+project(nota VERSION 5.1.0 LANGUAGES CXX)
 
 # Kirigami 6.29 itself requires Qt >= 6.9, so claiming less would be a lie.
 set(QT_MIN_VERSION 6.9.0)
@@ -27,7 +27,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 ${QT_MIN_VERSION} REQUIRED COMPONENTS
-    Core Gui Qml Quick QuickControls2 Widgets Test)
+    Core Gui Network Qml Quick QuickControls2 Widgets Test)
 find_package(Qt6 ${QT_MIN_VERSION} QUIET COMPONENTS QuickTest)
 
 find_package(KF6 ${KF_MIN_VERSION} REQUIRED COMPONENTS

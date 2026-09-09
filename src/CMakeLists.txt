@@ -8,10 +8,11 @@ add_library(notacore STATIC
     vault.cpp
     settings.cpp
     workplan.cpp
+    update.cpp
 )
 
 target_include_directories(notacore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(notacore PUBLIC Qt6::Core KF6::CoreAddons KF6::I18n)
+target_link_libraries(notacore PUBLIC Qt6::Core Qt6::Network KF6::CoreAddons KF6::I18n)
 
 # PUBLIC so everything downstream inherits them: without the domain every
 # i18n() call warns that no catalogue is set, and the version is wanted by the

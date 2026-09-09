@@ -13,6 +13,7 @@
 #pragma once
 
 #include "settings.h"
+#include "update.h"
 #include "workplan.h"
 
 #include <QObject>
@@ -33,6 +34,13 @@ class Nota : public QObject
 
     Q_PROPERTY(QString vaultPath READ vaultPath CONSTANT)
     Q_PROPERTY(QString version READ version CONSTANT)
+
+    /*! The newer version GitHub reports, or empty when this is the newest. */
+    Q_PROPERTY(QString updateVersion READ updateVersion NOTIFY updateChanged)
+    Q_PROPERTY(QString updateUrl READ updateUrl NOTIFY updateChanged)
+    /*! Whether this install is ours to replace, or a package manager's. */
+    Q_PROPERTY(bool canSelfUpdate READ canSelfUpdate CONSTANT)
+    Q_PROPERTY(bool updateRunning READ isUpdateRunning NOTIFY updateRunningChanged)
     Q_PROPERTY(FolderTreeModel *folderTree READ folderTree CONSTANT)
     Q_PROPERTY(ItemModel *items READ items CONSTANT)
 
@@ -67,6 +75,30 @@ public:
      * installed update does not take effect until the window is reopened.
      */
     QString version() const;
+
+    QString updateVersion() const
+    {
+        return m_updateVersion;
+    }
+    QString updateUrl() const
+    {
+        return m_updateUrl;
+    }
+    bool canSelfUpdate() const;
+    bool isUpdateRunning() const;
+
+    /*!
+     * Asks GitHub for the newest release. Runs once at launch unless the vault
+     * turned it off, and again whenever someone asks for it.
+     */
+    Q_INVOKABLE void checkForUpdate();
+
+    /*!
+     * Builds and installs the newest release. Refused when a package manager
+     * owns the running binary: writing over its files would leave its database
+     * describing something else.
+     */
+    Q_INVOKABLE void startUpdate();
     FolderTreeModel *folderTree() const
     {
         return m_folderTree.get();
@@ -193,6 +225,11 @@ public:
 
 Q_SIGNALS:
     void currentChanged();
+    void updateChanged();
+    void updateRunningChanged();
+    /*! A line of the installer's output, for the progress view. */
+    void updateOutput(const QString &line);
+    void updateFinished(bool ok, const QString &message);
     void errorMessageChanged();
     void dirtyChanged();
 
@@ -214,6 +251,13 @@ private:
     MdNote::Note m_current;
     QString m_currentPath;
     QString m_errorMessage;
+    QString m_updateVersion;
+    QString m_updateUrl;
+
+    // Built on demand: an install that never asks for an update never builds
+    // a network stack for one.
+    std::unique_ptr<Update::Checker> m_checker;
+    std::unique_ptr<Update::Installer> m_installer;
 
     // Two debounces rather than one: prose is typed in longer runs than item
     // text, so it earns a slower timer.

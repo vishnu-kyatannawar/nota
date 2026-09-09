@@ -44,6 +44,16 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="5.1.0" date="2026-09-09">
+      <description>
+        <p>
+          Nota now tells you when a newer version exists, and can install it for you when
+          you installed it yourself. A copy that came from your distribution's packages says
+          so instead of writing over files your package manager owns.
+        </p>
+        <p>The running version is shown at the bottom of the sidebar.</p>
+      </description>
+    </release>
     <release version="5.0.0" date="2026-09-09">
       <description>
         <p>

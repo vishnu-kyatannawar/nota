@@ -27,9 +27,16 @@ are byte-for-byte what the old one wrote.
 | The interface | Kirigami, keyboard-first |
 | Search, image paste, export/restore, self-update | Not ported yet |
 
-**v5.0.0 is Linux only, and it does not update itself.** The in-app updater was part of the
-Go build; reinstall with the one-liner below to move between versions. Windows ends at
-v4.6.1.
+**Linux only.** Windows ends at v4.6.1.
+
+Nota checks for a newer release at launch and says so in the window. If you installed it
+yourself, it can build and install the update for you; if it came from your distribution's
+packages, it tells you to update it there rather than writing over files your package
+manager owns. The check is the only thing here that touches the network, and
+`"checkForUpdates": false` in `.nota/settings.json` turns it off.
+
+The running version is at the bottom of the sidebar. Worth quoting in a bug report: an
+installed update does not take effect until you reopen the window.
 
 ## Install
 
