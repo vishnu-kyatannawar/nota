@@ -9,3 +9,10 @@ compile_commands.json
 # Local agent tooling and working artifacts, not project source.
 .claude/
 .lavish/
+
+# makepkg working tree, produced by building PKGBUILD in place.
+/nota-git/
+/pkg/
+/src/nota-git/
+*.pkg.tar.zst
+*.pkg.tar.zst.sig

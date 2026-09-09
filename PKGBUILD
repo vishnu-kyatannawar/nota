@@ -5,7 +5,7 @@
 # delete pkgver().
 
 pkgname=nota-git
-pkgver=0.2.0
+pkgver=0.2.0.r67.g5f4c136
 pkgrel=1
 pkgdesc="Daily workplans and notes, stored as plain markdown"
 arch=('x86_64' 'aarch64')
