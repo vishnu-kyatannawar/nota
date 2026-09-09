@@ -11,7 +11,9 @@
 #include "update.h"
 #include "vault.h"
 
+#include <KConfigGroup>
 #include <KLocalizedString>
+#include <KSharedConfig>
 
 #include <QCoreApplication>
 #include <QDateTime>
@@ -30,6 +32,15 @@ void Nota::setStartupVault(const QString &path)
     startupVault = path;
 }
 
+namespace
+{
+/*! Where a column width lives: the machine's state, not the vault's. */
+KConfigGroup columnState()
+{
+    return KConfigGroup(KSharedConfig::openStateConfig(), QStringLiteral("Columns"));
+}
+}
+
 Nota *Nota::create(QQmlEngine *, QJSEngine *)
 {
     auto *instance = new Nota;
@@ -44,6 +55,10 @@ Nota::Nota(QObject *parent)
     , m_items(std::make_unique<ItemModel>())
     , m_pages(std::make_unique<PageListModel>())
 {
+    const KConfigGroup columns = columnState();
+    m_folderColumnWidth = columns.readEntry("folderColumn", 0);
+    m_pageColumnWidth = columns.readEntry("pageColumn", 0);
+
     m_settings = NotaSettings::resolve();
     if (!startupVault.isEmpty()) {
         m_settings.vaultPath = NotaSettings::expandHome(startupVault);
@@ -114,6 +129,31 @@ Nota::~Nota() = default;
 QString Nota::vaultPath() const
 {
     return m_settings.vaultPath;
+}
+
+void Nota::storeColumnWidth(const char *key, int width, int *into)
+{
+    // A column dragged to nothing would be unrecoverable without a menu to
+    // bring it back, so a width that small is treated as never set.
+    const int clean = width > 0 ? width : 0;
+    if (clean == *into) {
+        return;
+    }
+    *into = clean;
+    KConfigGroup group = columnState();
+    group.writeEntry(key, clean);
+    group.sync();
+    Q_EMIT columnWidthsChanged();
+}
+
+void Nota::setFolderColumnWidth(int width)
+{
+    storeColumnWidth("folderColumn", width, &m_folderColumnWidth);
+}
+
+void Nota::setPageColumnWidth(int width)
+{
+    storeColumnWidth("pageColumn", width, &m_pageColumnWidth);
 }
 
 QString Nota::version() const

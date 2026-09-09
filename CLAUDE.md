@@ -81,6 +81,11 @@ import time.
   are separate columns in the window, so neither model carries the other's rows. The
   workplan folder is pinned to the top of the tree, and its pages run newest first because
   they are named for their date.
+- **Column widths are machine state, in KConfig's state file — never the vault.** How much
+  room a column needs depends on the screen, not on the notes, so it must not travel when
+  someone copies their vault. The same rule the window geometry follows.
+- **A `SplitView.preferredWidth` that is also written back cannot be a binding.** Assign it
+  once in `Component.onCompleted`; binding both ways is a loop.
 - **`createNote()` must refresh both models itself.** `writeNote()` reports no tree change,
   so without that the page just created is missing from the column it was created in until
   the watcher happens to fire.

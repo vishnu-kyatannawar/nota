@@ -179,48 +179,103 @@ Kirigami.ApplicationWindow {
                 ]
             }
 
-            RowLayout {
+            // A SplitView rather than fixed widths: how much room a folder
+            // name or a page title needs depends on what someone called them,
+            // which this cannot know. The two edges are draggable and the
+            // widths are remembered per machine.
+            QQC2.SplitView {
+                id: columns
+                objectName: "columns"
+
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                spacing: 0
+                orientation: Qt.Horizontal
+
+                handle: Rectangle {
+                    implicitWidth: Kirigami.Units.smallSpacing
+                    // Kirigami's theme has no separator colour; the faint one
+                    // between rows is what a divider is drawn from here.
+                    color: QQC2.SplitHandle.pressed || QQC2.SplitHandle.hovered
+                        ? Kirigami.Theme.highlightColor
+                        : Kirigami.Theme.alternateBackgroundColor
+
+                    // The line is a hair wide; the grab area cannot be, or the
+                    // handle is a pixel hunt.
+                    HoverHandler {
+                        cursorShape: Qt.SplitHCursor
+                        margin: Kirigami.Units.smallSpacing
+                    }
+                }
 
                 Sidebar {
                     id: sidebar
-                    Layout.preferredWidth: Kirigami.Units.gridUnit * 15
-                    Layout.fillHeight: true
+                    objectName: "folderColumn"
+
+                    QQC2.SplitView.minimumWidth: Kirigami.Units.gridUnit * 6
+                    QQC2.SplitView.maximumWidth: Kirigami.Units.gridUnit * 30
+
+                    // Assigned once rather than bound: this is also written
+                    // back as the user drags, and a binding both ways is a loop.
+                    Component.onCompleted: {
+                        QQC2.SplitView.preferredWidth = Nota.folderColumnWidth > 0
+                            ? Nota.folderColumnWidth
+                            : Kirigami.Units.gridUnit * 13;
+                    }
                 }
 
-                Kirigami.Separator {
-                    Layout.fillHeight: true
-                    Layout.preferredWidth: 1
-                }
-
-                // Folders on the left, what is in the selected one beside it.
-                // A folder of two hundred workplans scrolls on its own here,
-                // rather than pushing every other folder off the screen.
                 PageList {
                     id: pageList
-                    Layout.preferredWidth: Kirigami.Units.gridUnit * 14
-                    Layout.fillHeight: true
+                    objectName: "pageColumn"
+
+                    QQC2.SplitView.minimumWidth: Kirigami.Units.gridUnit * 6
+                    QQC2.SplitView.maximumWidth: Kirigami.Units.gridUnit * 34
 
                     onNewPageRequested: folder => sidebar.newPageIn(folder)
                     onRenameRequested: path => sidebar.promptRename(path)
                     onTrashRequested: path => sidebar.promptTrash(path)
-                }
 
-                Kirigami.Separator {
-                    Layout.fillHeight: true
-                    Layout.preferredWidth: 1
+                    Component.onCompleted: {
+                        QQC2.SplitView.preferredWidth = Nota.pageColumnWidth > 0
+                            ? Nota.pageColumnWidth
+                            : Kirigami.Units.gridUnit * 14;
+                    }
                 }
 
                 NotePage {
                     id: notePage
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
+
+                    QQC2.SplitView.fillWidth: true
+                    QQC2.SplitView.minimumWidth: Kirigami.Units.gridUnit * 16
 
                     // The sidebar creates and then reveals; the page only asks.
                     onNewPageRequested: folder => sidebar.newPageIn(folder)
                     onNewFolderRequested: parentFolder => sidebar.promptFolderIn(parentFolder)
+                }
+
+                // Dragging emits a width for every pixel crossed. Writing the
+                // state file that often would be absurd, so it is written once
+                // the handle has been still for a moment.
+                Timer {
+                    id: rememberWidths
+                    interval: 400
+                    onTriggered: {
+                        Nota.folderColumnWidth = sidebar.width;
+                        Nota.pageColumnWidth = pageList.width;
+                    }
+                }
+
+                Connections {
+                    target: sidebar
+                    function onWidthChanged(): void {
+                        rememberWidths.restart();
+                    }
+                }
+
+                Connections {
+                    target: pageList
+                    function onWidthChanged(): void {
+                        rememberWidths.restart();
+                    }
                 }
             }
         }

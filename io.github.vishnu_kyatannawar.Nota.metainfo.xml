@@ -44,6 +44,14 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="5.5.0" date="2026-09-09">
+      <description>
+        <p>
+          The folder and page columns can be dragged to whatever width suits your screen,
+          and each machine remembers what you set.
+        </p>
+      </description>
+    </release>
     <release version="5.4.0" date="2026-09-09">
       <description>
         <p>

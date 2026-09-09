@@ -62,6 +62,16 @@ class Nota : public QObject
     Q_PROPERTY(bool isWorkplan READ isWorkplan NOTIFY currentChanged)
     Q_PROPERTY(int openCount READ openCount NOTIFY currentChanged)
     Q_PROPERTY(int doneCount READ doneCount NOTIFY currentChanged)
+    /*!
+     * How wide the folder and page columns are, in pixels.
+     *
+     * Machine state rather than vault state, like the window geometry: how
+     * much room a column needs depends on the screen it is on, not on the
+     * notes. Zero means "never set", so the window picks its own default.
+     */
+    Q_PROPERTY(int folderColumnWidth READ folderColumnWidth WRITE setFolderColumnWidth NOTIFY columnWidthsChanged)
+    Q_PROPERTY(int pageColumnWidth READ pageColumnWidth WRITE setPageColumnWidth NOTIFY columnWidthsChanged)
+
     Q_PROPERTY(QString errorMessage READ errorMessage NOTIFY errorMessageChanged)
     Q_PROPERTY(bool dirty READ isDirty NOTIFY dirtyChanged)
 
@@ -93,6 +103,17 @@ public:
     {
         return m_updateUrl;
     }
+    int folderColumnWidth() const
+    {
+        return m_folderColumnWidth;
+    }
+    int pageColumnWidth() const
+    {
+        return m_pageColumnWidth;
+    }
+    void setFolderColumnWidth(int width);
+    void setPageColumnWidth(int width);
+
     bool canSelfUpdate() const;
     bool isUpdateRunning() const;
 
@@ -251,6 +272,7 @@ public:
 Q_SIGNALS:
     void currentChanged();
     void updateChanged();
+    void columnWidthsChanged();
     void updateRunningChanged();
     /*! A line of the installer's output, for the progress view. */
     void updateOutput(const QString &line);
@@ -262,6 +284,8 @@ private:
     void reload();
     /*! Points the page list at a folder and remembers it as the selection. */
     void setSelectedFolder(const QString &folder);
+    /*! Writes a column width to the machine's state file. */
+    void storeColumnWidth(const char *key, int width, int *into);
     /*! Drops the open page and any edit waiting on a debounce. */
     void closeCurrent();
     void armSave(QTimer *timer, bool *flag);
@@ -280,6 +304,9 @@ private:
     QString m_currentPath;
     QString m_currentFolder;
     QString m_errorMessage;
+    int m_folderColumnWidth = 0;
+    int m_pageColumnWidth = 0;
+
     QString m_updateVersion;
     QString m_updateUrl;
 

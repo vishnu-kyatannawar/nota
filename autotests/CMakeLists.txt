@@ -34,7 +34,7 @@ add_test(NAME nota-desktop-exec-is-absolute
 # QML plugins and the i18n context that main.cpp sets up.
 add_executable(windowtest windowtest.cpp)
 target_link_libraries(windowtest PRIVATE
-    notaqml Qt6::Test Qt6::Qml Qt6::Quick Qt6::Widgets KF6::I18nQml)
+    notaqml Qt6::Test Qt6::Qml Qt6::Quick Qt6::Widgets KF6::I18nQml KF6::ConfigCore)
 qt_import_qml_plugins(windowtest)
 add_test(NAME nota-windowtest COMMAND windowtest)
 set_tests_properties(nota-windowtest PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

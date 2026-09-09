@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 3.24)
 
-project(nota VERSION 5.4.0 LANGUAGES CXX)
+project(nota VERSION 5.5.0 LANGUAGES CXX)
 
 # Kirigami 6.29 itself requires Qt >= 6.9, so claiming less would be a lie.
 set(QT_MIN_VERSION 6.9.0)
