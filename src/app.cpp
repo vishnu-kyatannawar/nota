@@ -464,19 +464,19 @@ QString Nota::createNote(const QString &folder)
     return path;
 }
 
-bool Nota::createFolder(const QString &parent, const QString &name)
+QString Nota::createFolder(const QString &parent, const QString &name)
 {
     const QString clean = name.trimmed();
     if (clean.isEmpty() || clean.contains(u'/')) {
         fail(i18n("A folder name cannot be empty or contain a slash."));
-        return false;
+        return {};
     }
     const QString path = parent.isEmpty() ? clean : parent + u'/' + clean;
     if (!m_vault->createFolder(path)) {
         fail(m_vault->lastError());
-        return false;
+        return {};
     }
-    return true;
+    return path;
 }
 
 bool Nota::renamePath(const QString &path, const QString &newName)

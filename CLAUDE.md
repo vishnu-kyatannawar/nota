@@ -61,9 +61,14 @@ import time.
   same number — the focus handling depends on it.
 - **Never call `setItems()` on a save.** A save runs every 400 ms while someone types, and
   the model reset destroys the delegate being typed in. Use `mergeSaved()`.
-- **`FolderTreeModel::refresh()` must not reset when the tree is unchanged.** The watcher
-  reports a dirty folder on every save, and a reset collapses every folder the user had
-  expanded. It compares before resetting; keep it that way.
+- **`FolderTreeModel::refresh()` must never reset the model.** It diffs the vault against
+  the tree it holds and reports the difference as row insertions and removals. A reset is
+  what collapses every folder the user had expanded — the view cannot tell that the node it
+  had open is the same node afterwards. `sidebartreetest.cpp` asserts no reset is emitted
+  for a create, a delete or a rename, with `QAbstractItemModelTester` checking the row maths.
+- **`syncChildren()` relies on `Vault::tree()`'s ordering, not on a copy of its comparator.**
+  Survivors keep their relative order because both lists come out of the same sort, which is
+  all the algorithm needs. Do not reimplement folders-before-notes here.
 - **A QML property must not collide with a superclass member.** `Kirigami.Dialog` carries a
   FINAL `result` and a `done()` signal; shadowing either fails the whole component, so the
   window never gets created and the app exits 1 in silence. `autotests/windowtest.cpp`

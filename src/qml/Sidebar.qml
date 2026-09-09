@@ -22,6 +22,47 @@ Item {
     property string contextPath: ""
     property bool contextIsFolder: false
 
+    // The flattened row for a vault path, or -1 when it is not on screen. A
+    // linear walk: the tree is a directory of markdown files, and this runs
+    // once per page created.
+    function rowForPath(path: string): int {
+        for (let row = 0; row < flatTree.rowCount(); ++row) {
+            if (flatTree.data(flatTree.index(row, 0), FolderTreeModel.PathRole) === path) {
+                return row;
+            }
+        }
+        return -1;
+    }
+
+    // Opens every folder above \a path so the thing just created is where the
+    // user can see it. Top down, re-reading the row each time: a row does not
+    // exist in the flattened model until its parent is expanded, so the rows
+    // shift underneath as this goes.
+    function reveal(path: string): void {
+        if (path.length === 0) {
+            return;
+        }
+        const parts = path.split("/");
+        let prefix = "";
+        for (let i = 0; i < parts.length - 1; ++i) {
+            prefix = i === 0 ? parts[0] : prefix + "/" + parts[i];
+            const row = rowForPath(prefix);
+            if (row >= 0) {
+                flatTree.expandChildren(row);
+            }
+        }
+    }
+
+    // Creates a page in the chosen folder and opens the tree down to it.
+    function newPage(): void {
+        const created = Nota.createNote(targetFolder());
+        if (created.length > 0) {
+            reveal(created);
+            contextPath = created;
+            contextIsFolder = false;
+        }
+    }
+
     function targetFolder(): string {
         if (contextPath.length === 0) {
             return "";
@@ -75,7 +116,7 @@ Item {
             SidebarButton {
                 icon.name: "document-new"
                 text: i18nc("@action:button", "New page")
-                onClicked: Nota.createNote(sidebar.targetFolder())
+                onClicked: sidebar.newPage()
             }
 
             SidebarButton {
@@ -253,7 +294,7 @@ Item {
         QQC2.MenuItem {
             text: i18nc("@action:inmenu", "New page here")
             icon.name: "document-new"
-            onTriggered: Nota.createNote(sidebar.targetFolder())
+            onTriggered: sidebar.newPage()
         }
         QQC2.MenuItem {
             text: i18nc("@action:inmenu", "New folder here")
@@ -301,7 +342,14 @@ Item {
             folderName.text = "";
             folderName.forceActiveFocus();
         }
-        onAccepted: Nota.createFolder(parentFolder, folderName.text)
+        onAccepted: {
+            const created = Nota.createFolder(parentFolder, folderName.text);
+            if (created.length > 0) {
+                sidebar.reveal(created);
+                sidebar.contextPath = created;
+                sidebar.contextIsFolder = true;
+            }
+        }
     }
 
     Kirigami.PromptDialog {

@@ -14,6 +14,7 @@ ecm_add_tests(
     settingstest.cpp
     deletetest.cpp
     updatetest.cpp
+    sidebartreetest.cpp
     vaulttest.cpp
     NAME_PREFIX "nota-"
     LINK_LIBRARIES notaqml Qt6::Test

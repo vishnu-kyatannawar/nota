@@ -173,8 +173,13 @@ public:
      */
     Q_INVOKABLE QString createNote(const QString &folder);
 
-    /*! Creates a folder under \a parent. */
-    Q_INVOKABLE bool createFolder(const QString &parent, const QString &name);
+    /*!
+     * Creates a folder under \a parent and returns its vault-relative path,
+     * or an empty string if it could not be made. The path comes back because
+     * the sidebar has to open the tree down to it, and working the path out a
+     * second time in QML would be the same rule written twice.
+     */
+    Q_INVOKABLE QString createFolder(const QString &parent, const QString &name);
 
     /*! Renames a page or folder in place, keeping it where it is. */
     Q_INVOKABLE bool renamePath(const QString &path, const QString &newName);

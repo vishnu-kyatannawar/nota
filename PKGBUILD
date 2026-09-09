@@ -6,7 +6,7 @@
 # -git suffix, point source= at the latest release tarball and delete pkgver().
 
 pkgname=nota-git
-pkgver=5.1.0.r74.gd5cbb32
+pkgver=5.1.1.r76.g9700bfd
 pkgrel=1
 pkgdesc="Daily workplans and notes, stored as plain markdown"
 arch=('x86_64' 'aarch64')

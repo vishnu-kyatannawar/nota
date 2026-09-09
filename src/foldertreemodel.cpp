@@ -7,6 +7,8 @@
 
 #include "vault.h"
 
+#include <QSet>
+
 using namespace Qt::StringLiterals;
 
 FolderTreeModel::FolderTreeModel(QObject *parent)
@@ -38,40 +40,62 @@ void FolderTreeModel::build(const VaultNode &source, Node *into)
     }
 }
 
-bool FolderTreeModel::sameAs(const Node *a, const Node *b)
+void FolderTreeModel::syncChildren(Node *current, const QList<VaultNode> &target, const QModelIndex &parentIndex)
 {
-    if (a->children.size() != b->children.size()) {
-        return false;
+    // Both lists come out of Vault::tree(), which sorts folders before notes
+    // and each group by name. So whatever survives keeps its relative order,
+    // and that is the only property this needs: no comparator is duplicated
+    // here, where it could drift out of step with the one in the vault.
+    QSet<QString> wanted;
+    for (const VaultNode &child : target) {
+        wanted.insert(child.path);
     }
-    for (size_t i = 0; i < a->children.size(); ++i) {
-        const Node *x = a->children.at(i).get();
-        const Node *y = b->children.at(i).get();
-        if (x->path != y->path || x->name != y->name || x->isFolder != y->isFolder || !sameAs(x, y)) {
-            return false;
+
+    // Back to front, so the indices ahead of each removal stay valid.
+    for (int row = int(current->children.size()) - 1; row >= 0; --row) {
+        if (!wanted.contains(current->children.at(size_t(row))->path)) {
+            beginRemoveRows(parentIndex, row, row);
+            current->children.erase(current->children.begin() + row);
+            endRemoveRows();
         }
     }
-    return true;
+
+    for (qsizetype row = 0; row < target.size(); ++row) {
+        const VaultNode &want = target.at(row);
+        if (size_t(row) < current->children.size() && current->children.at(size_t(row))->path == want.path) {
+            continue;
+        }
+        auto node = std::make_unique<Node>();
+        node->name = want.name;
+        node->path = want.path;
+        node->isFolder = want.isFolder;
+        node->parent = current;
+        build(want, node.get());
+
+        beginInsertRows(parentIndex, int(row), int(row));
+        current->children.insert(current->children.begin() + row, std::move(node));
+        endInsertRows();
+    }
+
+    // The two lists now hold the same paths in the same order, so the rest is
+    // a walk down the pairs. A node inserted above already carries its whole
+    // subtree, which makes its recursion a no-op.
+    for (qsizetype row = 0; row < target.size(); ++row) {
+        Node *node = current->children.at(size_t(row)).get();
+        syncChildren(node, target.at(row).children, index(int(row), 0, parentIndex));
+    }
 }
 
 void FolderTreeModel::refresh()
 {
-    auto rebuilt = std::make_unique<Node>();
-    rebuilt->isFolder = true;
-    if (m_vault) {
-        build(m_vault->tree(), rebuilt.get());
-    }
-
-    // Saving a note marks its folder dirty, so this runs every few hundred
-    // milliseconds while someone types. A reset then collapses every folder
-    // they had expanded and drops the sidebar's scroll position, which is why
-    // this compares first and only resets when the tree really did change.
-    if (sameAs(m_root.get(), rebuilt.get())) {
+    if (!m_vault) {
         return;
     }
-
-    beginResetModel();
-    m_root = std::move(rebuilt);
-    endResetModel();
+    // Saving a note marks its folder dirty, so this runs every few hundred
+    // milliseconds while someone types. Nothing is emitted when nothing
+    // changed, and a real change arrives as rows rather than as a reset --
+    // a reset closes every folder the user had expanded.
+    syncChildren(m_root.get(), m_vault->tree().children, QModelIndex());
 }
 
 const FolderTreeModel::Node *FolderTreeModel::nodeFor(const QModelIndex &index) const

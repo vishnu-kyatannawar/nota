@@ -36,7 +36,6 @@ private Q_SLOTS:
     void aWorkplanPageCannotBeRenamed();
     void anOrdinaryPageFiledUnderWorkplansIsNotDated();
     void aFolderDeletedOutsideTheApplicationClosesThePageInsideIt();
-    void savingDoesNotResetTheSidebar();
 
 private:
     std::unique_ptr<QTemporaryDir> m_dir;
@@ -75,7 +74,7 @@ void DeleteTest::theWorkplanFolderItselfCannotBe()
 
 void DeleteTest::deletingAFolderTakesItOutOfTheTree()
 {
-    QVERIFY(m_app->createFolder({}, u"Projects"_s));
+    QVERIFY(!m_app->createFolder({}, u"Projects"_s).isEmpty());
     m_app->createNote(u"Projects"_s);
 
     QVERIFY2(m_app->removePath(u"Projects"_s), qPrintable(m_app->errorMessage()));
@@ -90,7 +89,7 @@ void DeleteTest::deletingAFolderTakesItOutOfTheTree()
 
 void DeleteTest::deletingAnEmptyFolderWorks()
 {
-    QVERIFY(m_app->createFolder({}, u"Empty"_s));
+    QVERIFY(!m_app->createFolder({}, u"Empty"_s).isEmpty());
     QVERIFY2(m_app->removePath(u"Empty"_s), qPrintable(m_app->errorMessage()));
     QVERIFY(!QFile::exists(m_dir->path() + u"/Empty"_s));
 }
@@ -105,7 +104,7 @@ void DeleteTest::deletingTheOpenPageLeavesNothingOpen()
 
 void DeleteTest::deletingAFolderClosesAPageInsideIt()
 {
-    QVERIFY(m_app->createFolder({}, u"Projects"_s));
+    QVERIFY(!m_app->createFolder({}, u"Projects"_s).isEmpty());
     const QString page = m_app->createNote(u"Projects"_s);
     QCOMPARE(m_app->currentPath(), page);
 
@@ -149,32 +148,12 @@ void DeleteTest::aFolderDeletedOutsideTheApplicationClosesThePageInsideIt()
 {
     // A vault is a directory people also use Dolphin and git on, so a folder
     // can go without this application being the one that removed it.
-    QVERIFY(m_app->createFolder({}, u"Projects"_s));
+    QVERIFY(!m_app->createFolder({}, u"Projects"_s).isEmpty());
     const QString page = m_app->createNote(u"Projects"_s);
     QCOMPARE(m_app->currentPath(), page);
 
     QVERIFY(QDir(m_dir->path() + u"/Projects"_s).removeRecursively());
     QTRY_VERIFY_WITH_TIMEOUT(m_app->currentPath() != page, 10000);
-}
-
-void DeleteTest::savingDoesNotResetTheSidebar()
-{
-    QVERIFY(m_app->createFolder({}, u"Projects"_s));
-    const QString page = m_app->createNote(u"Projects"_s);
-    QVERIFY(!page.isEmpty());
-
-    // A reset collapses every folder the user expanded, so it must happen only
-    // when the tree really changed — not on the save that follows a keystroke.
-    QSignalSpy reset(m_app->folderTree(), &QAbstractItemModel::modelAboutToBeReset);
-    const int row = m_app->items()->insertItem(-1, 0);
-    m_app->items()->setText(row, u"a typed line"_s);
-    m_app->flush();
-    m_app->folderTree()->refresh();
-    QCOMPARE(reset.count(), 0);
-
-    // Deleting really does change it, so that one still resets.
-    QVERIFY2(m_app->removePath(u"Projects"_s), qPrintable(m_app->errorMessage()));
-    QCOMPARE(reset.count(), 1);
 }
 
 QTEST_MAIN(DeleteTest)

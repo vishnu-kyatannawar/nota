@@ -63,8 +63,16 @@ private:
     };
 
     void build(const VaultNode &source, Node *into);
-    /*! Whether two trees hold the same folders and notes, in the same order. */
-    static bool sameAs(const Node *a, const Node *b);
+    /*!
+     * Brings \a current in line with \a target, reporting the difference as
+     * row insertions and removals rather than a reset.
+     *
+     * A reset is what collapses the sidebar: the view has no way to tell that
+     * the node it had expanded is the same node afterwards, so everything
+     * closes and the scroll position goes with it. Creating one page must not
+     * cost the user the shape of their tree.
+     */
+    void syncChildren(Node *current, const QList<VaultNode> &target, const QModelIndex &parentIndex);
     const Node *nodeFor(const QModelIndex &index) const;
 
     Vault *m_vault = nullptr;
