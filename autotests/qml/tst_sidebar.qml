@@ -49,32 +49,37 @@ Item {
             verify(label.width > 0 && label.height > 0, "the version label must have a size");
         }
 
-        function test_004_creatingInAFolderOpensItAndKeepsTheRestExpanded(): void {
+        function test_004_creatingRevealsTheNewFolderAndKeepsTheRestOpen(): void {
             const view = findChild(sidebar, "treeView");
             tryVerify(() => view.count > 0, 3000);
 
-            // Two folders, one expanded by hand, the other left closed.
-            const open = Nota.createFolder("", "Open");
-            const shut = Nota.createFolder("", "Shut");
-            verify(open.length > 0 && shut.length > 0);
+            // A folder nested inside one that is closed has no row at all
+            // until its parent is expanded.
+            const outer = Nota.createFolder("", "Outer");
+            const inner = Nota.createFolder(outer, "Inner");
+            verify(outer.length > 0 && inner.length > 0);
 
-            const openRow = sidebar.rowForPath(open);
-            verify(openRow >= 0, "the expanded folder must be on screen");
-            Nota.createNote(open);
-            sidebar.reveal(open + "/Untitled.md");
-            const beforeCount = view.count;
-            verify(sidebar.rowForPath(open + "/Untitled.md") >= 0, "the first page must be visible");
+            sidebar.reveal(inner);
+            verify(sidebar.rowForPath(inner) >= 0, "the new folder must be revealed");
 
-            // A page created in the closed folder: the folder has to open so
-            // the new page is where the user can see it...
-            const page = Nota.createNote(shut);
-            sidebar.reveal(page);
-            verify(sidebar.rowForPath(page) >= 0, "the new page must be revealed, got no row for " + page);
+            // Making something else must not close what is already open.
+            const elsewhere = Nota.createFolder("", "Elsewhere");
+            verify(elsewhere.length > 0);
+            verify(sidebar.rowForPath(inner) >= 0,
+                   "creating a folder elsewhere must not collapse the rest of the tree");
+        }
 
-            // ...and the folder that was already open must still be open.
-            verify(sidebar.rowForPath(open + "/Untitled.md") >= 0,
-                   "creating a page elsewhere must not collapse the rest of the tree");
-            verify(view.count >= beforeCount, "rows must not have disappeared");
+        function test_005_pagesLiveInTheirOwnColumnNotTheTree(): void {
+            const folder = Nota.createFolder("", "Column Check");
+            verify(folder.length > 0);
+
+            const page = Nota.createNote(folder);
+            verify(page.length > 0);
+
+            // The tree is folders. The page belongs to the list beside it.
+            compare(sidebar.rowForPath(page), -1, "a page must not be a row in the folder tree");
+            compare(Nota.pages.folder, folder);
+            verify(Nota.pages.rowForPath(page) >= 0, "the page must be in the page list");
         }
 
         function test_002_rightClickOnEmptySpaceTargetsTheRoot(): void {

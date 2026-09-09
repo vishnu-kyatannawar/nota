@@ -62,7 +62,17 @@ private:
         std::vector<std::unique_ptr<Node>> children;
     };
 
-    void build(const VaultNode &source, Node *into);
+    void build(const QList<VaultNode> &source, Node *into);
+    /*!
+     * The folders among \a children, with the workplan folder first when this
+     * is the top level.
+     *
+     * Notes are not in this model at all: the sidebar shows folders and the
+     * page list shows what is inside the one selected. The workplan folder is
+     * pinned because it is the one folder someone opens every day, and it
+     * would otherwise sit wherever its name happened to sort.
+     */
+    QList<VaultNode> foldersIn(const QList<VaultNode> &children, bool topLevel) const;
     /*!
      * Brings \a current in line with \a target, reporting the difference as
      * row insertions and removals rather than a reset.

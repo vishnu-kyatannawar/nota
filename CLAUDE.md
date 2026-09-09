@@ -77,6 +77,13 @@ import time.
   it with `QT_FORCE_STDERR_LOGGING=1` before assuming there is no error message.
 - **The update check needs a `User-Agent`.** GitHub's API answers 403 without one and Qt
   sets none, so dropping that header makes the check fail silently everywhere.
+- **`FolderTreeModel` holds folders only; `PageListModel` holds one folder's pages.** They
+  are separate columns in the window, so neither model carries the other's rows. The
+  workplan folder is pinned to the top of the tree, and its pages run newest first because
+  they are named for their date.
+- **`createNote()` must refresh both models itself.** `writeNote()` reports no tree change,
+  so without that the page just created is missing from the column it was created in until
+  the watcher happens to fire.
 - **`Nota::open()` routes a folder to `openFolder()`.** The sidebar shows folders, so a
   folder is a legitimate thing to click; reading one as a note reported "file to open is a
   directory". `currentPath` and `currentFolder` are mutually exclusive — two answers to

@@ -57,7 +57,7 @@ Item {
         anchors.centerIn: parent
         width: parent.width - Kirigami.Units.gridUnit * 4
         objectName: "folderPlaceholder"
-        visible: Nota.currentFolder.length > 0
+        visible: Nota.currentPath.length === 0 && Nota.currentFolder.length > 0
         icon.name: "folder-symbolic"
         text: i18n("Nothing here yet")
         explanation: Nota.currentFolder

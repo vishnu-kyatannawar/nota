@@ -7,6 +7,7 @@
 
 #include "foldertreemodel.h"
 #include "itemmodel.h"
+#include "pagelistmodel.h"
 #include "update.h"
 #include "vault.h"
 
@@ -41,6 +42,7 @@ Nota::Nota(QObject *parent)
     : QObject(parent)
     , m_folderTree(std::make_unique<FolderTreeModel>())
     , m_items(std::make_unique<ItemModel>())
+    , m_pages(std::make_unique<PageListModel>())
 {
     m_settings = NotaSettings::resolve();
     if (!startupVault.isEmpty()) {
@@ -59,6 +61,7 @@ Nota::Nota(QObject *parent)
     m_plans = std::make_unique<Workplan::Manager>(m_vault.get(), options);
 
     m_folderTree->setVault(m_vault.get(), m_settings.workplanFolder);
+    m_pages->setVault(m_vault.get(), m_settings.workplanFolder);
 
     // 400 ms for items, 600 ms for prose: the same figures the previous build
     // settled on, and prose is typed in longer runs so it earns the slower one.
@@ -79,8 +82,10 @@ Nota::Nota(QObject *parent)
     // An external edit reloads the open page; a new or removed file rebuilds
     // the sidebar. The vault suppresses the events our own writes cause.
     connect(m_vault.get(), &Vault::treeChanged, m_folderTree.get(), &FolderTreeModel::refresh);
+    connect(m_vault.get(), &Vault::treeChanged, m_pages.get(), &PageListModel::refresh);
     connect(m_vault.get(), &Vault::noteChanged, this, [this](const QString &path) {
         m_folderTree->refresh();
+        m_pages->refresh();
         // Reloading over unsaved edits would discard what the user is typing.
         if (path == m_currentPath && !isDirty()) {
             reload();
@@ -202,19 +207,27 @@ void Nota::open(const QString &path)
     }
     // Anything still pending belongs to the page being left, not the new one.
     flush();
-    m_currentFolder.clear();
+    // The page list follows the page, so opening something from search or from
+    // another folder leaves the middle column showing where that page lives.
+    setSelectedFolder(path.contains(u'/') ? path.section(u'/', 0, -2) : QString());
     m_currentPath = path;
     reload();
 }
 
+void Nota::setSelectedFolder(const QString &folder)
+{
+    m_currentFolder = folder;
+    m_pages->setFolder(folder);
+}
+
 void Nota::openFolder(const QString &path)
 {
-    if (path.isEmpty() || path == m_currentFolder) {
+    if (path == m_currentFolder && m_currentPath.isEmpty()) {
         return;
     }
     flush();
     closeCurrent();
-    m_currentFolder = path;
+    setSelectedFolder(path);
     Q_EMIT currentChanged();
 }
 
@@ -481,7 +494,11 @@ QString Nota::createNote(const QString &folder)
         fail(m_vault->lastError());
         return {};
     }
+    // writeNote() does not report a tree change — the watcher will, eventually
+    // — so both models are told here. Without this the page just created is
+    // missing from the column it was created in until something else happens.
     m_folderTree->refresh();
+    m_pages->refresh();
     open(path);
     return path;
 }
@@ -554,7 +571,6 @@ bool Nota::removePath(const QString &path)
 
 void Nota::closeCurrent()
 {
-    m_currentFolder.clear();
     // The page is gone, so an edit still sitting on a debounce has nowhere to
     // go. Dropping it is what stops the timer writing the file back.
     m_itemSave->stop();

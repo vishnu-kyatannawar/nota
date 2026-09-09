@@ -67,6 +67,18 @@ Item {
         newPageIn(targetFolder());
     }
 
+    /*! Asks for a new name for \a path. */
+    function promptRename(path: string): void {
+        renamePrompt.path = path;
+        renamePrompt.open();
+    }
+
+    /*! Confirms, then moves \a path to the trash. */
+    function promptTrash(path: string): void {
+        deletePrompt.path = path;
+        deletePrompt.open();
+    }
+
     /*! Asks for a name, then creates the folder under \a parent. */
     function promptFolderIn(parent: string): void {
         folderPrompt.parentFolder = parent;
@@ -313,19 +325,13 @@ Item {
             text: i18nc("@action:inmenu", "Rename…")
             icon.name: "edit-rename"
             enabled: sidebar.contextPath.length > 0 && !rowMenu.reservedPath && !rowMenu.datedPath
-            onTriggered: {
-                renamePrompt.path = sidebar.contextPath;
-                renamePrompt.open();
-            }
+            onTriggered: sidebar.promptRename(sidebar.contextPath)
         }
         QQC2.MenuItem {
             text: i18nc("@action:inmenu", "Move to trash")
             icon.name: "edit-delete"
             enabled: sidebar.contextPath.length > 0 && !rowMenu.reservedPath
-            onTriggered: {
-                deletePrompt.path = sidebar.contextPath;
-                deletePrompt.open();
-            }
+            onTriggered: sidebar.promptTrash(sidebar.contextPath)
         }
     }
 

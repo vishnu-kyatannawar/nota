@@ -24,6 +24,7 @@
 
 class FolderTreeModel;
 class ItemModel;
+class PageListModel;
 class Vault;
 
 class Nota : public QObject
@@ -43,12 +44,14 @@ class Nota : public QObject
     Q_PROPERTY(bool updateRunning READ isUpdateRunning NOTIFY updateRunningChanged)
     Q_PROPERTY(FolderTreeModel *folderTree READ folderTree CONSTANT)
     Q_PROPERTY(ItemModel *items READ items CONSTANT)
+    /*! The pages inside the selected folder, for the middle column. */
+    Q_PROPERTY(PageListModel *pages READ pages CONSTANT)
 
     Q_PROPERTY(QString currentPath READ currentPath NOTIFY currentChanged)
     /*!
-     * The folder the sidebar has selected, empty whenever a page is open. A
-     * folder holds no note to show, so the page area offers to fill it rather
-     * than reporting that a directory could not be read as a file.
+     * The selected folder, which is the one the page list shows. It stays put
+     * while a page inside it is open — that is what keeps the middle column
+     * populated — and follows along when a page elsewhere is opened.
      */
     Q_PROPERTY(QString currentFolder READ currentFolder NOTIFY currentChanged)
     Q_PROPERTY(QString title READ title NOTIFY currentChanged)
@@ -112,6 +115,10 @@ public:
     ItemModel *items() const
     {
         return m_items.get();
+    }
+    PageListModel *pages() const
+    {
+        return m_pages.get();
     }
 
     QString currentPath() const
@@ -253,6 +260,8 @@ Q_SIGNALS:
 
 private:
     void reload();
+    /*! Points the page list at a folder and remembers it as the selection. */
+    void setSelectedFolder(const QString &folder);
     /*! Drops the open page and any edit waiting on a debounce. */
     void closeCurrent();
     void armSave(QTimer *timer, bool *flag);
@@ -264,6 +273,7 @@ private:
     std::unique_ptr<Workplan::Manager> m_plans;
     std::unique_ptr<FolderTreeModel> m_folderTree;
     std::unique_ptr<ItemModel> m_items;
+    std::unique_ptr<PageListModel> m_pages;
 
     NotaSettings::Settings m_settings;
     MdNote::Note m_current;

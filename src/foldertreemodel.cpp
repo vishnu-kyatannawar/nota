@@ -27,15 +27,37 @@ void FolderTreeModel::setVault(Vault *vault, const QString &workplanFolder)
     refresh();
 }
 
-void FolderTreeModel::build(const VaultNode &source, Node *into)
+QList<VaultNode> FolderTreeModel::foldersIn(const QList<VaultNode> &children, bool topLevel) const
 {
-    for (const VaultNode &child : source.children) {
+    QList<VaultNode> out;
+    for (const VaultNode &child : children) {
+        if (child.isFolder) {
+            out.append(child);
+        }
+    }
+
+    if (topLevel && !m_workplanFolder.isEmpty()) {
+        const auto found = std::find_if(out.begin(), out.end(), [this](const VaultNode &node) {
+            return node.path == m_workplanFolder;
+        });
+        if (found != out.end() && found != out.begin()) {
+            // Move it to the front, leaving the rest in the name order the
+            // vault sorted them into.
+            std::rotate(out.begin(), found, found + 1);
+        }
+    }
+    return out;
+}
+
+void FolderTreeModel::build(const QList<VaultNode> &source, Node *into)
+{
+    for (const VaultNode &child : source) {
         auto node = std::make_unique<Node>();
         node->name = child.name;
         node->path = child.path;
-        node->isFolder = child.isFolder;
+        node->isFolder = true;
         node->parent = into;
-        build(child, node.get());
+        build(foldersIn(child.children, false), node.get());
         into->children.push_back(std::move(node));
     }
 }
@@ -68,9 +90,9 @@ void FolderTreeModel::syncChildren(Node *current, const QList<VaultNode> &target
         auto node = std::make_unique<Node>();
         node->name = want.name;
         node->path = want.path;
-        node->isFolder = want.isFolder;
+        node->isFolder = true;
         node->parent = current;
-        build(want, node.get());
+        build(foldersIn(want.children, false), node.get());
 
         beginInsertRows(parentIndex, int(row), int(row));
         current->children.insert(current->children.begin() + row, std::move(node));
@@ -82,7 +104,7 @@ void FolderTreeModel::syncChildren(Node *current, const QList<VaultNode> &target
     // subtree, which makes its recursion a no-op.
     for (qsizetype row = 0; row < target.size(); ++row) {
         Node *node = current->children.at(size_t(row)).get();
-        syncChildren(node, target.at(row).children, index(int(row), 0, parentIndex));
+        syncChildren(node, foldersIn(target.at(row).children, false), index(int(row), 0, parentIndex));
     }
 }
 
@@ -95,7 +117,7 @@ void FolderTreeModel::refresh()
     // milliseconds while someone types. Nothing is emitted when nothing
     // changed, and a real change arrives as rows rather than as a reset --
     // a reset closes every folder the user had expanded.
-    syncChildren(m_root.get(), m_vault->tree().children, QModelIndex());
+    syncChildren(m_root.get(), foldersIn(m_vault->tree().children, true), QModelIndex());
 }
 
 const FolderTreeModel::Node *FolderTreeModel::nodeFor(const QModelIndex &index) const
@@ -165,7 +187,7 @@ QVariant FolderTreeModel::data(const QModelIndex &index, int role) const
         return {};
     }
     const Node *node = nodeFor(index);
-    const bool isWorkplan = !node->isFolder && !m_workplanFolder.isEmpty() && node->path.startsWith(m_workplanFolder + u'/');
+    const bool isWorkplan = !m_workplanFolder.isEmpty() && node->path == m_workplanFolder;
 
     switch (role) {
     case Qt::DisplayRole:
@@ -178,10 +200,7 @@ QVariant FolderTreeModel::data(const QModelIndex &index, int role) const
     case IsWorkplanRole:
         return isWorkplan;
     case IconNameRole:
-        if (node->isFolder) {
-            return node->path == m_workplanFolder ? u"view-calendar-day"_s : u"folder-symbolic"_s;
-        }
-        return isWorkplan ? u"view-calendar-day"_s : u"text-markdown"_s;
+        return isWorkplan ? u"view-calendar-day"_s : u"folder-symbolic"_s;
     default:
         return {};
     }

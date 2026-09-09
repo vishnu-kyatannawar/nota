@@ -44,6 +44,19 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="5.4.0" date="2026-09-09">
+      <description>
+        <p>
+          Folders and pages now sit in columns of their own. The folder tree holds folders,
+          and the pages inside the selected one are listed beside it, where a long folder
+          scrolls without pushing every other folder off the screen.
+        </p>
+        <p>
+          The workplan folder is pinned above the rest, workplans read newest first, and
+          there is a New page button at the top of the list.
+        </p>
+      </description>
+    </release>
     <release version="5.3.0" date="2026-09-09">
       <description>
         <p>

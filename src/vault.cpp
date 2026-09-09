@@ -73,6 +73,34 @@ bool Vault::exists(const QString &rel) const
     return abs.has_value() && QFileInfo::exists(*abs);
 }
 
+QList<VaultNode> Vault::notesIn(const QString &rel) const
+{
+    const QString abs = rel.isEmpty() ? m_root : resolve(rel).value_or(QString());
+    if (abs.isEmpty()) {
+        return {};
+    }
+
+    QList<VaultNode> notes;
+    const QFileInfoList entries = QDir(abs).entryInfoList(QDir::Files | QDir::NoDotAndDotDot | QDir::Hidden);
+    for (const QFileInfo &entry : entries) {
+        const QString name = entry.fileName();
+        // The same rule readDir() follows: a vault lives alongside other
+        // tools' metadata, and none of it is a page.
+        if (name.startsWith(u'.') || !name.endsWith(NoteExt, Qt::CaseInsensitive)) {
+            continue;
+        }
+        VaultNode node;
+        node.name = name.chopped(NoteExt.size());
+        node.path = rel.isEmpty() ? name : rel + u'/' + name;
+        notes.append(node);
+    }
+
+    std::sort(notes.begin(), notes.end(), [](const VaultNode &a, const VaultNode &b) {
+        return a.name < b.name;
+    });
+    return notes;
+}
+
 bool Vault::isFolder(const QString &rel) const
 {
     const auto abs = resolve(rel);

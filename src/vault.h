@@ -93,6 +93,13 @@ public:
     /*! Parses the note at a vault-relative path. */
     std::optional<MdNote::Note> readNote(const QString &rel) const;
 
+    /*!
+     * The notes directly inside \a rel, sorted by name. No recursion: the page
+     * list shows one folder at a time, and walking the whole subtree to render
+     * it would be work thrown away.
+     */
+    QList<VaultNode> notesIn(const QString &rel) const;
+
     /*! Whether a vault-relative path names a directory rather than a note. */
     bool isFolder(const QString &rel) const;
 

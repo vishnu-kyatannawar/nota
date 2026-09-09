@@ -30,6 +30,7 @@ add_library(notaqml STATIC
     app.cpp
     itemmodel.cpp
     foldertreemodel.cpp
+    pagelistmodel.cpp
 )
 
 set_property(TARGET notaqml PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -57,6 +58,7 @@ ecm_target_qml_sources(notaqml SOURCES
     qml/Main.qml
     qml/Sidebar.qml
     qml/SidebarButton.qml
+    qml/PageList.qml
     qml/NotePage.qml
     qml/DayHeader.qml
     qml/ItemList.qml

@@ -31,13 +31,14 @@ private Q_SLOTS:
     void cleanup();
 
     void savingEmitsNothingAtAll();
-    void creatingAPageInAFolderInsertsOneRowUnderThatFolder();
+    void theWorkplanFolderIsPinnedAboveTheRest();
+    void pagesAreNotRowsInTheFolderTree();
     void creatingAFolderInsertsOneRowRatherThanResetting();
     void deletingRemovesOneRowRatherThanResetting();
-    void aRenameIsAnInsertAndARemoveNotAReset();
+    void renamingAFolderIsAnInsertAndARemoveNotAReset();
     void openingAnEmptyFolderIsNotAnError();
     void openingAFolderThatHasPagesIsNotAnError();
-    void openingAPageClearsTheFolderSelection();
+    void openingAPageSelectsTheFolderItLivesIn();
 
 private:
     QModelIndex indexFor(const QString &path) const;
@@ -99,27 +100,37 @@ void SidebarTreeTest::savingEmitsNothingAtAll()
     QCOMPARE(removed.count(), 0);
 }
 
-void SidebarTreeTest::creatingAPageInAFolderInsertsOneRowUnderThatFolder()
+void SidebarTreeTest::theWorkplanFolderIsPinnedAboveTheRest()
 {
-    QVERIFY(!m_app->createFolder({}, u"Projects"_s).isEmpty());
-    const QModelIndex folder = indexFor(u"Projects"_s);
-    QVERIFY(folder.isValid());
+    // The one folder opened every day should not sit wherever its name
+    // happens to sort. Everything else keeps the vault's name order.
+    QVERIFY(!m_app->createFolder({}, u"Alpha"_s).isEmpty());
+    QVERIFY(!m_app->createFolder({}, u"Zulu"_s).isEmpty());
+
+    const FolderTreeModel *tree = m_app->folderTree();
+    QCOMPARE(tree->rowCount(), 3);
+    QCOMPARE(tree->index(0, 0).data(FolderTreeModel::PathRole).toString(), u"Workplans"_s);
+    QCOMPARE(tree->index(1, 0).data(FolderTreeModel::PathRole).toString(), u"Alpha"_s);
+    QCOMPARE(tree->index(2, 0).data(FolderTreeModel::PathRole).toString(), u"Zulu"_s);
+}
+
+void SidebarTreeTest::pagesAreNotRowsInTheFolderTree()
+{
+    // Folders on the left, pages in their own column. A folder of two hundred
+    // workplans as a branch of the tree is what made the sidebar unusable.
+    const QString folder = m_app->createFolder({}, u"Projects"_s);
+    QVERIFY(!folder.isEmpty());
 
     FolderTreeModel *tree = m_app->folderTree();
-    QSignalSpy reset(tree, &QAbstractItemModel::modelAboutToBeReset);
     QSignalSpy inserted(tree, &QAbstractItemModel::rowsInserted);
+    QSignalSpy reset(tree, &QAbstractItemModel::modelAboutToBeReset);
 
-    const QString page = m_app->createNote(u"Projects"_s);
+    const QString page = m_app->createNote(folder);
     QVERIFY(!page.isEmpty());
 
     QCOMPARE(reset.count(), 0);
-    QCOMPARE(inserted.count(), 1);
-    // The parent the row arrived under is what tells the view which folder to
-    // keep open, so it has to be the folder and not the root.
-    QCOMPARE(inserted.constFirst().at(0).toModelIndex(), folder);
-
-    QCOMPARE(tree->rowCount(folder), 1);
-    QCOMPARE(tree->index(0, 0, folder).data(FolderTreeModel::PathRole).toString(), page);
+    QCOMPARE(inserted.count(), 0);
+    QCOMPARE(tree->rowCount(indexFor(folder)), 0);
 }
 
 void SidebarTreeTest::creatingAFolderInsertsOneRowRatherThanResetting()
@@ -151,19 +162,18 @@ void SidebarTreeTest::deletingRemovesOneRowRatherThanResetting()
     QVERIFY(!indexFor(u"Projects"_s).isValid());
 }
 
-void SidebarTreeTest::aRenameIsAnInsertAndARemoveNotAReset()
+void SidebarTreeTest::renamingAFolderIsAnInsertAndARemoveNotAReset()
 {
-    const QString page = m_app->createNote({});
-    QVERIFY(!page.isEmpty());
+    QVERIFY(!m_app->createFolder({}, u"Projects"_s).isEmpty());
 
     FolderTreeModel *tree = m_app->folderTree();
     QSignalSpy reset(tree, &QAbstractItemModel::modelAboutToBeReset);
 
-    QVERIFY2(m_app->renamePath(page, u"Renamed"_s), qPrintable(m_app->errorMessage()));
+    QVERIFY2(m_app->renamePath(u"Projects"_s, u"Renamed"_s), qPrintable(m_app->errorMessage()));
 
     QCOMPARE(reset.count(), 0);
-    QVERIFY(indexFor(u"Renamed.md"_s).isValid());
-    QVERIFY(!indexFor(page).isValid());
+    QVERIFY(indexFor(u"Renamed"_s).isValid());
+    QVERIFY(!indexFor(u"Projects"_s).isValid());
 }
 
 void SidebarTreeTest::openingAnEmptyFolderIsNotAnError()
@@ -195,19 +205,21 @@ void SidebarTreeTest::openingAFolderThatHasPagesIsNotAnError()
     QCOMPARE(m_app->currentFolder(), folder);
 }
 
-void SidebarTreeTest::openingAPageClearsTheFolderSelection()
+void SidebarTreeTest::openingAPageSelectsTheFolderItLivesIn()
 {
     const QString folder = m_app->createFolder({}, u"Projects"_s);
     const QString page = m_app->createNote(folder);
     QVERIFY(!page.isEmpty());
 
-    m_app->open(folder);
-    QCOMPARE(m_app->currentFolder(), folder);
+    m_app->open(u"Workplans"_s);
+    QCOMPARE(m_app->currentFolder(), u"Workplans"_s);
 
+    // Opening a page from anywhere moves the page list to where that page
+    // lives, so the middle column is never showing a different folder than
+    // the page on screen belongs to.
     m_app->open(page);
     QCOMPARE(m_app->currentPath(), page);
-    // Both showing at once would be two answers to "what am I looking at".
-    QVERIFY(m_app->currentFolder().isEmpty());
+    QCOMPARE(m_app->currentFolder(), folder);
 }
 
 QTEST_MAIN(SidebarTreeTest)

@@ -195,6 +195,24 @@ Kirigami.ApplicationWindow {
                     Layout.preferredWidth: 1
                 }
 
+                // Folders on the left, what is in the selected one beside it.
+                // A folder of two hundred workplans scrolls on its own here,
+                // rather than pushing every other folder off the screen.
+                PageList {
+                    id: pageList
+                    Layout.preferredWidth: Kirigami.Units.gridUnit * 14
+                    Layout.fillHeight: true
+
+                    onNewPageRequested: folder => sidebar.newPageIn(folder)
+                    onRenameRequested: path => sidebar.promptRename(path)
+                    onTrashRequested: path => sidebar.promptTrash(path)
+                }
+
+                Kirigami.Separator {
+                    Layout.fillHeight: true
+                    Layout.preferredWidth: 1
+                }
+
                 NotePage {
                     id: notePage
                     Layout.fillWidth: true
