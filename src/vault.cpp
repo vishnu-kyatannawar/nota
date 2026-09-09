@@ -73,6 +73,12 @@ bool Vault::exists(const QString &rel) const
     return abs.has_value() && QFileInfo::exists(*abs);
 }
 
+bool Vault::isFolder(const QString &rel) const
+{
+    const auto abs = resolve(rel);
+    return abs.has_value() && QFileInfo(*abs).isDir();
+}
+
 std::optional<QString> Vault::readRaw(const QString &rel) const
 {
     const auto abs = resolve(rel);

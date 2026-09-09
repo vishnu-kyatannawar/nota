@@ -44,6 +44,15 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="5.3.0" date="2026-09-09">
+      <description>
+        <p>
+          Selecting a folder now shows the folder, with an offer to put a page or another
+          folder in it. An empty one used to report that a directory could not be read as a
+          file, which was true and no help.
+        </p>
+      </description>
+    </release>
     <release version="5.2.0" date="2026-09-09">
       <description>
         <p>

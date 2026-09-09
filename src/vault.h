@@ -93,6 +93,9 @@ public:
     /*! Parses the note at a vault-relative path. */
     std::optional<MdNote::Note> readNote(const QString &rel) const;
 
+    /*! Whether a vault-relative path names a directory rather than a note. */
+    bool isFolder(const QString &rel) const;
+
     /*! The note's bytes without parsing, for the raw markdown editor. */
     std::optional<QString> readRaw(const QString &rel) const;
 

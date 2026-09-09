@@ -45,6 +45,12 @@ class Nota : public QObject
     Q_PROPERTY(ItemModel *items READ items CONSTANT)
 
     Q_PROPERTY(QString currentPath READ currentPath NOTIFY currentChanged)
+    /*!
+     * The folder the sidebar has selected, empty whenever a page is open. A
+     * folder holds no note to show, so the page area offers to fill it rather
+     * than reporting that a directory could not be read as a file.
+     */
+    Q_PROPERTY(QString currentFolder READ currentFolder NOTIFY currentChanged)
     Q_PROPERTY(QString title READ title NOTIFY currentChanged)
     Q_PROPERTY(QString subtitle READ subtitle NOTIFY currentChanged)
     Q_PROPERTY(QString body READ body NOTIFY currentChanged)
@@ -112,6 +118,13 @@ public:
     {
         return m_currentPath;
     }
+    QString currentFolder() const
+    {
+        return m_currentFolder;
+    }
+
+    /*! Selects a folder, closing whatever page was open. */
+    Q_INVOKABLE void openFolder(const QString &path);
     QString title() const;
     QString subtitle() const;
     QString body() const
@@ -255,6 +268,7 @@ private:
     NotaSettings::Settings m_settings;
     MdNote::Note m_current;
     QString m_currentPath;
+    QString m_currentFolder;
     QString m_errorMessage;
     QString m_updateVersion;
     QString m_updateUrl;

@@ -35,6 +35,9 @@ private Q_SLOTS:
     void creatingAFolderInsertsOneRowRatherThanResetting();
     void deletingRemovesOneRowRatherThanResetting();
     void aRenameIsAnInsertAndARemoveNotAReset();
+    void openingAnEmptyFolderIsNotAnError();
+    void openingAFolderThatHasPagesIsNotAnError();
+    void openingAPageClearsTheFolderSelection();
 
 private:
     QModelIndex indexFor(const QString &path) const;
@@ -161,6 +164,50 @@ void SidebarTreeTest::aRenameIsAnInsertAndARemoveNotAReset()
     QCOMPARE(reset.count(), 0);
     QVERIFY(indexFor(u"Renamed.md"_s).isValid());
     QVERIFY(!indexFor(page).isValid());
+}
+
+void SidebarTreeTest::openingAnEmptyFolderIsNotAnError()
+{
+    // A folder is a legitimate thing to click in a sidebar that shows folders.
+    // Reading it as a note reported "file to open is a directory", which is
+    // true and no help: what the user wanted was to put something in it.
+    const QString folder = m_app->createFolder({}, u"R&D"_s);
+    QVERIFY(!folder.isEmpty());
+
+    m_app->clearError();
+    m_app->open(folder);
+
+    QVERIFY2(m_app->errorMessage().isEmpty(), qPrintable(m_app->errorMessage()));
+    QCOMPARE(m_app->currentFolder(), folder);
+    QVERIFY(m_app->currentPath().isEmpty());
+}
+
+void SidebarTreeTest::openingAFolderThatHasPagesIsNotAnError()
+{
+    const QString folder = m_app->createFolder({}, u"Projects"_s);
+    QVERIFY(!folder.isEmpty());
+    QVERIFY(!m_app->createNote(folder).isEmpty());
+
+    m_app->clearError();
+    m_app->open(folder);
+
+    QVERIFY2(m_app->errorMessage().isEmpty(), qPrintable(m_app->errorMessage()));
+    QCOMPARE(m_app->currentFolder(), folder);
+}
+
+void SidebarTreeTest::openingAPageClearsTheFolderSelection()
+{
+    const QString folder = m_app->createFolder({}, u"Projects"_s);
+    const QString page = m_app->createNote(folder);
+    QVERIFY(!page.isEmpty());
+
+    m_app->open(folder);
+    QCOMPARE(m_app->currentFolder(), folder);
+
+    m_app->open(page);
+    QCOMPARE(m_app->currentPath(), page);
+    // Both showing at once would be two answers to "what am I looking at".
+    QVERIFY(m_app->currentFolder().isEmpty());
 }
 
 QTEST_MAIN(SidebarTreeTest)

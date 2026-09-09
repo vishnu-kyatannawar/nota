@@ -77,6 +77,10 @@ import time.
   it with `QT_FORCE_STDERR_LOGGING=1` before assuming there is no error message.
 - **The update check needs a `User-Agent`.** GitHub's API answers 403 without one and Qt
   sets none, so dropping that header makes the check fail silently everywhere.
+- **`Nota::open()` routes a folder to `openFolder()`.** The sidebar shows folders, so a
+  folder is a legitimate thing to click; reading one as a note reported "file to open is a
+  directory". `currentPath` and `currentFolder` are mutually exclusive — two answers to
+  "what am I looking at" is one too many.
 - **Only the workplan folder itself is reserved.** The dated notes under it can be deleted
   like any page; they cannot be *renamed*, because the filename is the date. `isReserved()`
   is the folder, `isDatedPage()` is a note under it.

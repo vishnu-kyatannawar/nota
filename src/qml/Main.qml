@@ -185,6 +185,7 @@ Kirigami.ApplicationWindow {
                 spacing: 0
 
                 Sidebar {
+                    id: sidebar
                     Layout.preferredWidth: Kirigami.Units.gridUnit * 15
                     Layout.fillHeight: true
                 }
@@ -198,6 +199,10 @@ Kirigami.ApplicationWindow {
                     id: notePage
                     Layout.fillWidth: true
                     Layout.fillHeight: true
+
+                    // The sidebar creates and then reveals; the page only asks.
+                    onNewPageRequested: folder => sidebar.newPageIn(folder)
+                    onNewFolderRequested: parentFolder => sidebar.promptFolderIn(parentFolder)
                 }
             }
         }

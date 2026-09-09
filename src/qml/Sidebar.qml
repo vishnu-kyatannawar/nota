@@ -53,14 +53,24 @@ Item {
         }
     }
 
-    // Creates a page in the chosen folder and opens the tree down to it.
-    function newPage(): void {
-        const created = Nota.createNote(targetFolder());
+    // Creates a page in \a folder and opens the tree down to it.
+    function newPageIn(folder: string): void {
+        const created = Nota.createNote(folder);
         if (created.length > 0) {
             reveal(created);
             contextPath = created;
             contextIsFolder = false;
         }
+    }
+
+    function newPage(): void {
+        newPageIn(targetFolder());
+    }
+
+    /*! Asks for a name, then creates the folder under \a parent. */
+    function promptFolderIn(parent: string): void {
+        folderPrompt.parentFolder = parent;
+        folderPrompt.open();
     }
 
     function targetFolder(): string {
@@ -122,10 +132,7 @@ Item {
             SidebarButton {
                 icon.name: "folder-new"
                 text: i18nc("@action:button", "New folder")
-                onClicked: {
-                    folderPrompt.parentFolder = sidebar.targetFolder();
-                    folderPrompt.open();
-                }
+                onClicked: sidebar.promptFolderIn(sidebar.targetFolder())
             }
         }
 
@@ -299,10 +306,7 @@ Item {
         QQC2.MenuItem {
             text: i18nc("@action:inmenu", "New folder here")
             icon.name: "folder-new"
-            onTriggered: {
-                folderPrompt.parentFolder = sidebar.targetFolder();
-                folderPrompt.open();
-            }
+            onTriggered: sidebar.promptFolderIn(sidebar.targetFolder())
         }
         QQC2.MenuSeparator {}
         QQC2.MenuItem {

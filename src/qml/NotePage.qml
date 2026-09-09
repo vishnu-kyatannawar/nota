@@ -36,13 +36,50 @@ Item {
         color: Kirigami.Theme.backgroundColor
     }
 
+    // The sidebar owns creating things, because it also has to open the tree
+    // down to whatever was made. This only asks.
+    signal newPageRequested(folder: string)
+    signal newFolderRequested(parent: string)
+
     Kirigami.PlaceholderMessage {
         anchors.centerIn: parent
         width: parent.width - Kirigami.Units.gridUnit * 4
-        visible: Nota.currentPath.length === 0
+        visible: Nota.currentPath.length === 0 && Nota.currentFolder.length === 0
         icon.name: "text-markdown"
         text: i18n("Pick a page")
         explanation: i18n("Choose something in the sidebar, or open today's workplan.")
+    }
+
+    // A folder holds no note to show. Offering to fill it is the useful thing
+    // to do with that space — an empty one used to report that a directory
+    // could not be read as a file, which is true and no help to anybody.
+    Kirigami.PlaceholderMessage {
+        anchors.centerIn: parent
+        width: parent.width - Kirigami.Units.gridUnit * 4
+        objectName: "folderPlaceholder"
+        visible: Nota.currentFolder.length > 0
+        icon.name: "folder-symbolic"
+        text: i18n("Nothing here yet")
+        explanation: Nota.currentFolder
+
+        RowLayout {
+            Layout.alignment: Qt.AlignHCenter
+            spacing: Kirigami.Units.smallSpacing
+
+            QQC2.Button {
+                objectName: "folderNewPage"
+                text: i18nc("@action:button", "New page")
+                icon.name: "document-new"
+                onClicked: page.newPageRequested(Nota.currentFolder)
+            }
+
+            QQC2.Button {
+                objectName: "folderNewFolder"
+                text: i18nc("@action:button", "New folder")
+                icon.name: "folder-new"
+                onClicked: page.newFolderRequested(Nota.currentFolder)
+            }
+        }
     }
 
     Loader {

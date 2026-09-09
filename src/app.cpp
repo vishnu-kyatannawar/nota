@@ -187,13 +187,35 @@ void Nota::clearError()
 
 void Nota::open(const QString &path)
 {
-    if (path.isEmpty() || path == m_currentPath) {
+    if (path.isEmpty()) {
+        return;
+    }
+    // A folder is a legitimate thing to click in a sidebar that shows folders.
+    // Routing it here rather than letting readNote() fail is what stops "file
+    // to open is a directory" reaching the user, whoever calls open().
+    if (m_vault && m_vault->isFolder(path)) {
+        openFolder(path);
+        return;
+    }
+    if (path == m_currentPath) {
         return;
     }
     // Anything still pending belongs to the page being left, not the new one.
     flush();
+    m_currentFolder.clear();
     m_currentPath = path;
     reload();
+}
+
+void Nota::openFolder(const QString &path)
+{
+    if (path.isEmpty() || path == m_currentFolder) {
+        return;
+    }
+    flush();
+    closeCurrent();
+    m_currentFolder = path;
+    Q_EMIT currentChanged();
 }
 
 void Nota::armSave(QTimer *timer, bool *flag)
@@ -532,6 +554,7 @@ bool Nota::removePath(const QString &path)
 
 void Nota::closeCurrent()
 {
+    m_currentFolder.clear();
     // The page is gone, so an edit still sitting on a debounce has nowhere to
     // go. Dropping it is what stops the timer writing the file back.
     m_itemSave->stop();
