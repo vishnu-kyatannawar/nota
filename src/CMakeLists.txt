@@ -13,9 +13,12 @@ add_library(notacore STATIC
 target_include_directories(notacore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(notacore PUBLIC Qt6::Core KF6::CoreAddons KF6::I18n)
 
-# PUBLIC so everything downstream inherits it: without the definition every
-# i18n() call warns that no catalogue is set.
-target_compile_definitions(notacore PUBLIC TRANSLATION_DOMAIN="nota")
+# PUBLIC so everything downstream inherits them: without the domain every
+# i18n() call warns that no catalogue is set, and the version is wanted by the
+# sidebar as much as by --version, so it cannot live on the executable alone.
+target_compile_definitions(notacore PUBLIC
+    TRANSLATION_DOMAIN="nota"
+    NOTA_VERSION_STRING="${PROJECT_VERSION}")
 set_property(TARGET notacore PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 # The QML module lives in a library rather than in the executable, so the tests
@@ -64,8 +67,6 @@ ecm_target_qml_sources(notaqml SOURCES
 ecm_finalize_qml_module(notaqml)
 
 add_executable(nota main.cpp)
-
-target_compile_definitions(nota PRIVATE NOTA_VERSION_STRING="${PROJECT_VERSION}")
 
 target_link_libraries(nota PRIVATE
     notaqml

@@ -32,6 +32,7 @@ class Nota : public QObject
     QML_SINGLETON
 
     Q_PROPERTY(QString vaultPath READ vaultPath CONSTANT)
+    Q_PROPERTY(QString version READ version CONSTANT)
     Q_PROPERTY(FolderTreeModel *folderTree READ folderTree CONSTANT)
     Q_PROPERTY(ItemModel *items READ items CONSTANT)
 
@@ -59,6 +60,13 @@ public:
     ~Nota() override;
 
     QString vaultPath() const;
+
+    /*!
+     * The build's version. The sidebar shows it because the first question
+     * asked about any bug report is which version is actually running, and an
+     * installed update does not take effect until the window is reopened.
+     */
+    QString version() const;
     FolderTreeModel *folderTree() const
     {
         return m_folderTree.get();

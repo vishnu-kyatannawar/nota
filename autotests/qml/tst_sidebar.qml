@@ -36,6 +36,19 @@ Item {
             compare(sidebar.contextPath, path);
         }
 
+        function test_003_theRunningVersionIsOnScreen(): void {
+            // The answer to "which build are you on" has to be visible without
+            // a terminal, because an installed update only takes effect on the
+            // next launch and a stale window looks exactly like an unfixed bug.
+            const label = findChild(sidebar, "versionLabel");
+            verify(label !== null, "the sidebar must show a version");
+            verify(label.text.length > 0, "the version must not be blank");
+            compare(label.text, Nota.version);
+            // This project has shipped a zero-height row before, so "present
+            // in the tree" is not the same claim as "on screen".
+            verify(label.width > 0 && label.height > 0, "the version label must have a size");
+        }
+
         function test_002_rightClickOnEmptySpaceTargetsTheRoot(): void {
             const view = findChild(sidebar, "treeView");
             tryVerify(() => view.count > 0, 3000);

@@ -104,6 +104,11 @@ QString Nota::vaultPath() const
     return m_settings.vaultPath;
 }
 
+QString Nota::version() const
+{
+    return QStringLiteral(NOTA_VERSION_STRING);
+}
+
 void Nota::fail(const QString &message)
 {
     m_errorMessage = message;

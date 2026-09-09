@@ -16,19 +16,20 @@ shortcuts rather than bringing its own.
 
 ## Where this is
 
-Nota is being rewritten. It was a Go application drawing its interface in an embedded
-WebKitGTK view; it is becoming a native Kirigami one. The vault format has not changed and
+Nota has been rewritten. It was a Go application drawing its interface in an embedded
+WebKitGTK view; **v5.0.0 is a native Kirigami one**. The vault format has not changed and
 will not: an existing `~/Notes` opens in the new build unchanged, and the files it writes
 are byte-for-byte what the old one wrote.
 
 | | State |
 | --- | --- |
-| Note format, vault, settings, rollover, repeating items | Ported to C++, 89 tests |
-| The interface | Not built yet |
-| Search index, labels, image paste, export/restore, self-update | Deferred until the interface lands |
+| Note format, vault, settings, rollover, repeating items | Ported to C++, 124 tests |
+| The interface | Kirigami, keyboard-first |
+| Search, image paste, export/restore, self-update | Not ported yet |
 
-**The latest release, v4.6.1, is still the Go build.** There is no released KDE build yet,
-so the installer below builds from source.
+**v5.0.0 is Linux only, and it does not update itself.** The in-app updater was part of the
+Go build; reinstall with the one-liner below to move between versions. Windows ends at
+v4.6.1.
 
 ## Install
 

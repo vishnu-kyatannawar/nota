@@ -44,9 +44,14 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
-    <release version="0.2.0" date="2026-09-07">
+    <release version="5.0.0" date="2026-09-09">
       <description>
-        <p>First native KDE build: the vault, the note format and rollover, with a Kirigami window.</p>
+        <p>
+          Nota is now a native KDE application. The interface is Kirigami rather than an
+          embedded web view, so it follows your Breeze colours, your fonts and your
+          shortcuts. Your vault is unchanged: the files this writes are the same files.
+        </p>
+        <p>This release is Linux only. Windows users should stay on 4.6.1.</p>
       </description>
     </release>
   </releases>

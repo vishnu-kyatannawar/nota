@@ -1,11 +1,12 @@
 # Maintainer: Vishnu Kyatannawar <vishnukyatannawar@gmail.com>
 #
-# Nota has no KDE release tag yet, so this builds the development branch. When
-# one is cut, drop the -git suffix, point source= at the release tarball and
-# delete pkgver().
+# This tracks the development branch on purpose: it is the -git package, and
+# pkgver() derives its version from CMakeLists.txt plus the commit, so it
+# always sorts above the last release. For a release build instead, drop the
+# -git suffix, point source= at the v5.0.0 tarball and delete pkgver().
 
 pkgname=nota-git
-pkgver=0.2.0.r67.g5f4c136
+pkgver=0.2.0.r71.g368e1b3
 pkgrel=1
 pkgdesc="Daily workplans and notes, stored as plain markdown"
 arch=('x86_64' 'aarch64')

@@ -200,13 +200,42 @@ Item {
             Layout.fillWidth: true
         }
 
-        QQC2.Label {
+        // The vault and the running version. The version is here because the
+        // first thing worth knowing about any report is which build produced
+        // it, and an installed update does not take effect until the window is
+        // reopened — so "what does the sidebar say" has to have an answer.
+        RowLayout {
             Layout.fillWidth: true
             Layout.margins: Kirigami.Units.smallSpacing
-            text: Nota.vaultPath
-            elide: Text.ElideMiddle
-            font: Kirigami.Theme.smallFont
-            opacity: 0.7
+            spacing: Kirigami.Units.smallSpacing
+
+            QQC2.Label {
+                Layout.fillWidth: true
+                text: Nota.vaultPath
+                elide: Text.ElideMiddle
+                font: Kirigami.Theme.smallFont
+                opacity: 0.7
+            }
+
+            Kirigami.Icon {
+                source: "documentinfo-symbolic"
+                implicitWidth: Kirigami.Units.iconSizes.small
+                implicitHeight: Kirigami.Units.iconSizes.small
+                opacity: 0.7
+            }
+
+            QQC2.Label {
+                objectName: "versionLabel"
+                text: Nota.version
+                font: Kirigami.Theme.smallFont
+                opacity: 0.7
+
+                QQC2.ToolTip.visible: versionHover.hovered
+                QQC2.ToolTip.text: i18nc("@info:tooltip", "Nota %1", Nota.version)
+                HoverHandler {
+                    id: versionHover
+                }
+            }
         }
     }
 
