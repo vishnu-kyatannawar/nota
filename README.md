@@ -49,7 +49,7 @@ of a one-line install for this kind of application.
 On Arch and CachyOS the packaged route is better, since pacman then owns the files:
 
 ```sh
-curl -fsSLO https://raw.githubusercontent.com/vishnu-kyatannawar/nota/main/PKGBUILD
+curl -fsSLO https://raw.githubusercontent.com/vishnu-kyatannawar/nota/main/PKGBUILD &&
 makepkg -si
 ```
 
