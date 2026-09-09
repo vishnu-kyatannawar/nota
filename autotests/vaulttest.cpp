@@ -6,6 +6,7 @@
 #include "vault.h"
 
 #include <QDir>
+#include <QSignalSpy>
 #include <QFile>
 #include <QTemporaryDir>
 #include <QTest>
@@ -29,6 +30,7 @@ private Q_SLOTS:
     void theApplicationFolderCannotBeDeleted();
     void theTreeHidesDotFoldersAndSortsFoldersFirst();
     void listNotesSkipsHiddenFoldersAndNonNotes();
+    void savingANoteIsNotReportedAsSomethingDisappearing();
 
 private:
     void touch(const QString &rel, const QString &content = u"x"_s) const;
@@ -180,6 +182,28 @@ void VaultTest::listNotesSkipsHiddenFoldersAndNonNotes()
 
     QCOMPARE(m_vault->listNotes(),
              QStringList({u"Projects/notes.md"_s, u"Workplans/2026-09-01.md"_s, u"Workplans/2026-09-02.md"_s}));
+}
+
+void VaultTest::savingANoteIsNotReportedAsSomethingDisappearing()
+{
+    // QSaveFile writes through a temporary beside the note and renames it away.
+    // The watcher sees that temporary vanish on every save; treating it as a
+    // deletion rebuilt the sidebar while the user was typing.
+    touch(u"Projects/notes.md"_s, u"first"_s);
+    m_vault->startWatching();
+
+    QSignalSpy removed(m_vault.get(), &Vault::noteRemoved);
+    QSignalSpy tree(m_vault.get(), &Vault::treeChanged);
+
+    QVERIFY(m_vault->writeRaw(u"Projects/notes.md"_s, u"second"_s));
+
+    // Long enough for inotify to deliver, and for KDirWatch's own poll.
+    QTest::qWait(2000);
+    QCOMPARE(removed.count(), 0);
+
+    // The folder itself does go dirty on a save, so treeChanged is expected
+    // here. FolderTreeModel is where that is kept from resetting the sidebar.
+    QVERIFY(tree.count() <= 1);
 }
 
 QTEST_GUILESS_MAIN(VaultTest)

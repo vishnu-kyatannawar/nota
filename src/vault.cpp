@@ -337,7 +337,16 @@ void Vault::startWatching()
     connect(m_watch, &KDirWatch::created, this, &Vault::onDirty);
     connect(m_watch, &KDirWatch::deleted, this, [this](const QString &path) {
         const QString rel = relativeFor(path);
-        if (rel.isEmpty()) {
+        // The same filter onDirty() applies: our own folder is not part of the
+        // tree the sidebar shows.
+        if (rel.isEmpty() || rel.startsWith(u'.') || rel.contains("/."_L1)) {
+            return;
+        }
+        // QSaveFile writes through "<name>.md.XXXXXX" beside the note and
+        // renames it away on every save. A vanished temporary is not a page
+        // being deleted, and reporting it rebuilt the sidebar every 400 ms
+        // while someone typed, collapsing whatever they had expanded.
+        if (rel.section(u'/', -1).contains(QString(NoteExt) + u'.')) {
             return;
         }
         Q_EMIT noteRemoved(rel);

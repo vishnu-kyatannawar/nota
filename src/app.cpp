@@ -84,11 +84,11 @@ Nota::Nota(QObject *parent)
         }
     });
     connect(m_vault.get(), &Vault::noteRemoved, this, [this](const QString &path) {
-        if (path == m_currentPath) {
-            m_currentPath.clear();
-            m_current = {};
-            m_items->setItems({});
-            Q_EMIT currentChanged();
+        // The prefix case is a folder deleted outside the application: the
+        // page inside it is just as gone as one deleted directly, and leaving
+        // it open lets the next debounce write the file back.
+        if (path == m_currentPath || m_currentPath.startsWith(path + u'/')) {
+            closeCurrent();
         }
     });
     m_vault->startWatching();
@@ -349,7 +349,22 @@ bool Nota::setLayout(const QString &layout)
 bool Nota::isReserved(const QString &path) const
 {
     const QString folder = m_settings.workplanFolder;
-    return !folder.isEmpty() && (path == folder || path.startsWith(folder + u'/'));
+    return !folder.isEmpty() && path == folder;
+}
+
+bool Nota::isDatedPage(const QString &path) const
+{
+    const QString folder = m_settings.workplanFolder;
+    if (folder.isEmpty() || !path.startsWith(folder + u'/')) {
+        return false;
+    }
+    // Directly under the folder and named for a date. Anything else someone
+    // filed in there is an ordinary page and renames like one.
+    const QString name = path.sliced(folder.size() + 1);
+    if (name.contains(u'/') || !name.endsWith(MdNote::Ext, Qt::CaseInsensitive)) {
+        return false;
+    }
+    return QDate::fromString(name.chopped(MdNote::Ext.size()), Workplan::DateFormat).isValid();
 }
 
 QString Nota::createNote(const QString &folder)
@@ -409,6 +424,10 @@ bool Nota::renamePath(const QString &path, const QString &newName)
         fail(i18n("The workplan folder is reserved and cannot be renamed."));
         return false;
     }
+    if (isDatedPage(path)) {
+        fail(i18n("A workplan is named for its date, so it cannot be renamed."));
+        return false;
+    }
 
     const bool isNote = path.endsWith(MdNote::Ext, Qt::CaseInsensitive);
     const QString parent = path.contains(u'/') ? path.section(u'/', 0, -2) + u'/' : QString();
@@ -440,12 +459,28 @@ bool Nota::removePath(const QString &path)
         return false;
     }
     if (m_currentPath == path || m_currentPath.startsWith(path + u'/')) {
-        m_currentPath.clear();
-        m_current = {};
-        m_items->setItems({});
-        Q_EMIT currentChanged();
+        closeCurrent();
     }
     return true;
+}
+
+void Nota::closeCurrent()
+{
+    // The page is gone, so an edit still sitting on a debounce has nowhere to
+    // go. Dropping it is what stops the timer writing the file back.
+    m_itemSave->stop();
+    m_bodySave->stop();
+    const bool wasDirty = isDirty();
+    m_itemsDirty = false;
+    m_bodyDirty = false;
+    m_savePath.clear();
+    m_currentPath.clear();
+    m_current = {};
+    m_items->setItems({});
+    if (wasDirty) {
+        Q_EMIT dirtyChanged();
+    }
+    Q_EMIT currentChanged();
 }
 
 bool Nota::addRepeating(const QString &text)

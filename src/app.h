@@ -143,10 +143,21 @@ public:
     Q_INVOKABLE bool removePath(const QString &path);
 
     /*!
-     * Whether this path is the reserved workplan folder, which cannot be
-     * renamed or deleted without breaking every dated note under it.
+     * Whether this path is the reserved workplan folder itself, which cannot
+     * be renamed or deleted without orphaning every dated note under it.
+     *
+     * The notes under it are not reserved. A day is yours to throw away, and
+     * refusing to delete one made every workplan in the sidebar undeletable.
      */
     Q_INVOKABLE bool isReserved(const QString &path) const;
+
+    /*!
+     * Whether this path is one of the dated notes in the workplan folder.
+     *
+     * It may be deleted, but not renamed: the filename is the date every
+     * lookup and the rollover find the day by, so a new name orphans it.
+     */
+    Q_INVOKABLE bool isDatedPage(const QString &path) const;
 
     /*! Adds an item that repeats every day, and seeds it into today. */
     Q_INVOKABLE bool addRepeating(const QString &text);
@@ -179,6 +190,8 @@ Q_SIGNALS:
 
 private:
     void reload();
+    /*! Drops the open page and any edit waiting on a debounce. */
+    void closeCurrent();
     void armSave(QTimer *timer, bool *flag);
     void saveNow();
     void fail(const QString &message);

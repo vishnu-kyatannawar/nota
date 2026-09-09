@@ -99,6 +99,7 @@ Item {
 
             ListView {
                 id: treeView
+                objectName: "treeView"
                 model: flatTree
                 currentIndex: -1
 
@@ -133,6 +134,7 @@ Item {
                             sidebar.contextPath = treeDelegate.path;
                             sidebar.contextIsFolder = treeDelegate.isFolder;
                             rowMenu.reservedPath = Nota.isReserved(treeDelegate.path);
+                            rowMenu.datedPath = Nota.isDatedPage(treeDelegate.path);
                             rowMenu.popup();
                         }
                     }
@@ -170,12 +172,24 @@ Item {
                     explanation: Nota.vaultPath
                 }
 
+                // The empty space below the tree: a right-click there targets
+                // the vault root. Delegates sit above this handler but do not
+                // consume the tap, so without the indexAt() guard this fired
+                // for a row as well and wiped the context the row just set —
+                // which left Rename and Move to trash greyed out.
                 TapHandler {
                     acceptedButtons: Qt.RightButton
-                    onTapped: {
+                    onTapped: eventPoint => {
+                        // eventPoint.position is already in the view's own
+                        // coordinates; indexAt() wants the content's.
+                        const local = eventPoint.position;
+                        if (treeView.indexAt(treeView.contentX + local.x, treeView.contentY + local.y) >= 0) {
+                            return;
+                        }
                         sidebar.contextPath = "";
                         sidebar.contextIsFolder = true;
                         rowMenu.reservedPath = false;
+                        rowMenu.datedPath = false;
                         rowMenu.popup();
                     }
                 }
@@ -203,6 +217,10 @@ Item {
         // every dated note under it.
         property bool reservedPath: false
 
+        // A dated note inside that folder. It can be thrown away like any
+        // other page, but not renamed: the filename is the date.
+        property bool datedPath: false
+
         QQC2.MenuItem {
             text: i18nc("@action:inmenu", "New page here")
             icon.name: "document-new"
@@ -220,7 +238,7 @@ Item {
         QQC2.MenuItem {
             text: i18nc("@action:inmenu", "Rename…")
             icon.name: "edit-rename"
-            enabled: sidebar.contextPath.length > 0 && !rowMenu.reservedPath
+            enabled: sidebar.contextPath.length > 0 && !rowMenu.reservedPath && !rowMenu.datedPath
             onTriggered: {
                 renamePrompt.path = sidebar.contextPath;
                 renamePrompt.open();
@@ -293,7 +311,12 @@ Item {
                 text: i18nc("@action:button", "Move to trash")
                 icon.name: "edit-delete"
                 onTriggered: {
-                    Nota.removePath(deletePrompt.path);
+                    if (Nota.removePath(deletePrompt.path) && sidebar.contextPath === deletePrompt.path) {
+                        // Otherwise the context still names the folder that was
+                        // just deleted, and "New page here" recreates it.
+                        sidebar.contextPath = "";
+                        sidebar.contextIsFolder = true;
+                    }
                     deletePrompt.close();
                 }
             }

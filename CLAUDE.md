@@ -61,6 +61,12 @@ import time.
   same number — the focus handling depends on it.
 - **Never call `setItems()` on a save.** A save runs every 400 ms while someone types, and
   the model reset destroys the delegate being typed in. Use `mergeSaved()`.
+- **`FolderTreeModel::refresh()` must not reset when the tree is unchanged.** The watcher
+  reports a dirty folder on every save, and a reset collapses every folder the user had
+  expanded. It compares before resetting; keep it that way.
+- **Only the workplan folder itself is reserved.** The dated notes under it can be deleted
+  like any page; they cannot be *renamed*, because the filename is the date. `isReserved()`
+  is the folder, `isDatedPage()` is a note under it.
 - Settings live in the vault at `.nota/settings.json` so a vault stays portable. Window
   geometry is the exception: it is machine state, persisted through KConfig.
 
