@@ -44,6 +44,15 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="5.1.1" date="2026-09-09">
+      <description>
+        <p>
+          The launcher now starts the copy of Nota it was installed beside, instead of
+          whichever one comes first on PATH. Two installs could coexist — one from a package,
+          one built into your home directory — and upgrading either kept launching the other.
+        </p>
+      </description>
+    </release>
     <release version="5.1.0" date="2026-09-09">
       <description>
         <p>

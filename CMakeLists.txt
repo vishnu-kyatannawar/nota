@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 3.24)
 
-project(nota VERSION 5.1.0 LANGUAGES CXX)
+project(nota VERSION 5.1.1 LANGUAGES CXX)
 
 # Kirigami 6.29 itself requires Qt >= 6.9, so claiming less would be a lie.
 set(QT_MIN_VERSION 6.9.0)
@@ -62,7 +62,16 @@ if(BUILD_TESTING)
     add_subdirectory(autotests)
 endif()
 
-install(PROGRAMS io.github.vishnu_kyatannawar.Nota.desktop
+# The launcher points at this install's own binary rather than at "nota" on
+# PATH. Two installs can coexist — a packaged one in /usr and a built one under
+# ~/.local — and with a bare command name whichever directory comes first on
+# PATH wins for both of them, so upgrading one silently kept launching the
+# other. An absolute path makes each launcher start the build it was installed
+# beside.
+configure_file(io.github.vishnu_kyatannawar.Nota.desktop.in
+               ${CMAKE_CURRENT_BINARY_DIR}/io.github.vishnu_kyatannawar.Nota.desktop
+               @ONLY)
+install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/io.github.vishnu_kyatannawar.Nota.desktop
         DESTINATION ${KDE_INSTALL_APPDIR})
 install(FILES io.github.vishnu_kyatannawar.Nota.metainfo.xml
         DESTINATION ${KDE_INSTALL_METAINFODIR})

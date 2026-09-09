@@ -19,6 +19,14 @@ ecm_add_tests(
     LINK_LIBRARIES notaqml Qt6::Test
 )
 
+# The launcher has to name this install's own binary. A bare "nota" is resolved
+# through PATH when it is clicked, which is how an upgraded install kept
+# starting an older copy that happened to sit in an earlier directory.
+add_test(NAME nota-desktop-exec-is-absolute
+         COMMAND ${CMAKE_COMMAND}
+                 "-DFILE=${CMAKE_BINARY_DIR}/io.github.vishnu_kyatannawar.Nota.desktop"
+                 -P "${CMAKE_CURRENT_SOURCE_DIR}/checkdesktop.cmake")
+
 # Creates the actual window. Its own target rather than one of the plain
 # suites above, because building Main.qml needs the widget application, the
 # QML plugins and the i18n context that main.cpp sets up.
